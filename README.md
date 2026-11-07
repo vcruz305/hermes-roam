@@ -74,7 +74,9 @@ the defaults are an ALLOWLIST — an unknown file can never leak into a bundle.
   read-only under `<home>/roam/session-archive/<device>/` — reading needs no
   opt-in, only publishing does — and list it with `hermes roam sessions`;
   a pulled archive can never be re-pushed, and archived sessions can never
-  be resumed. Transcripts travel encrypted, but Hermes's `--redact` pass is
+  be resumed. Only finished sessions are exported (Hermes's export skips a
+  session that is still open, such as a running gateway chat); it is picked
+  up by the first push after it ends. Transcripts travel encrypted, but Hermes's `--redact` pass is
   best-effort pattern matching: **an archived transcript may still contain
   anything you typed**, including secrets you pasted into a session.
 - **Cron job definitions** (`sync_cron`): enable with

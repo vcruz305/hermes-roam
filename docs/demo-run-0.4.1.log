@@ -243,7 +243,7 @@ updated_at: ""
 ended_at: "2026-11-07T09:15:53.332587Z"
 model: null
 provider: null
-cwd: "/root/work"
+cwd: "<work>"
 archived: false
 message_count: 2
 tool_call_count: 0
@@ -258,7 +258,7 @@ Session ID: `20261107_011552_96e841`
 
 Source: `claude-code`
 
-Working directory: `/root/work`
+Working directory: `<work>`
 
 ## Messages
 
