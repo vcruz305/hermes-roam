@@ -621,7 +621,7 @@ grep -q "hermes-roam" "$OUT" \
 runlog zeta/profiles/work plugins enable hermes-roam
 grep -q "enabled" "$OUT" \
   || { echo "FAIL: the plugin was not enabled in the profile home" >&2; exit 1; }
-printf 'ROAM_ARCHIVE_KEY=%s\n' "$(cat "$BASE/demo-key.txt")" > "$BASE/zeta/profiles/work/.env"
+printf 'ROAM_ARCHIVE_KEY=%s\n' "$KEY" > "$BASE/zeta/profiles/work/.env"
 chmod 600 "$BASE/zeta/profiles/work/.env"
 runlog zeta -p work roam status
 grep -qF "$BASE/zeta" "$OUT" \
