@@ -963,14 +963,16 @@ class Engine:
             )
         if dry_run:
             # R11: the dry run reports the real estimate, carried content included.
-            carried_bytes_estimate = sum(
-                int((state.base_files.get(relpath) or {}).get("size") or 0)
-                for relpath in carried
+            # 0.5.1: the session archive is already exported at this point, so
+            # the manifest holds every member's real size — no need for the
+            # sessions_max_mb upper bound that doctor's pre-flight estimate uses.
+            manifest_bytes = sum(
+                int((entry or {}).get("size") or 0) for entry in manifest.values()
             )
             return PushResult(
                 generation=remote_generation + 1,
                 bundle_key="",
-                bundle_size=self.estimate_bundle_bytes() + carried_bytes_estimate,
+                bundle_size=manifest_bytes + (len(manifest) + 1) * 1024 + 65536,
                 file_count=len(manifest),
                 files=sorted(manifest),
                 notes=session_notes,

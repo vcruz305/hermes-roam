@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.2 — 2026-11-07
+
+- `push --dry-run` with the session archive on now reports the real bundle
+  size. It used to add the whole `sessions_max_mb` cap (50 MB by default) on
+  top, so a home with two short transcripts showed a 52 MB push. `doctor`'s
+  pre-flight size check still uses the cap as its upper bound.
+
 ## 0.5.1 — 2026-11-07
 
 Hermes bundles ~58 skills into every home's `skills/` tree (nested category

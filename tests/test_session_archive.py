@@ -331,6 +331,22 @@ def test_estimate_accounts_for_the_archive_cap(tmp_path: Path) -> None:
     assert engine_on.estimate_bundle_bytes() == base + 3 * 1024 * 1024
 
 
+
+def test_dry_run_reports_real_archive_size_not_the_cap(tmp_path: Path, monkeypatch) -> None:
+    """0.5.1: the dry run already exported the archive, so its size estimate
+    must use the real transcript sizes, not the sessions_max_mb upper bound
+    (a 2-transcript home once reported a 52 MB push)."""
+    backend = FakeBackend()
+    home_a = tmp_path / "home-a"
+    write(home_a / "skills/a/SKILL.md", b"a")
+    engine = mk_engine(home_a, "dev-a", backend, sync_sessions=True, sessions_max_mb=50)
+    inject_export(monkeypatch, [transcript("sess-a1.md", "sess-a1", "2026-11-06", b"x" * 2000)])
+    engine.init(create_remote=True)
+    result = engine.push(dry_run=True)
+    assert result.dry_run and result.file_count >= 2
+    assert result.bundle_size < 1024 * 1024, result.bundle_size
+    assert any(f.startswith("archive/sessions/dev-a/") for f in result.files)
+
 # ------------------------------------------------------------- sanitization
 
 
