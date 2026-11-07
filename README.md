@@ -85,9 +85,10 @@ On the first machine:
 #    it is plain `hermes plugins install hermes-roam`. From a local
 #    checkout: `hermes plugins install file:///path/to/hermes-roam`.
 hermes plugins install vcruz305/hermes-roam
+hermes plugins enable hermes-roam      # installs arrive disabled
 
 # 2. Generate the archive key (32 random bytes) and keep it private.
-python -c "import secrets;print(secrets.token_urlsafe(32))"
+python3 -c "import secrets;print(secrets.token_urlsafe(32))"
 
 # 3. Put it in the active home's .env as ROAM_ARCHIVE_KEY=... (type it in
 #    yourself — never paste secrets into chat), then configure the backend.
@@ -111,7 +112,7 @@ hermes roam doctor
 hermes roam push
 ```
 
-On the second machine: install the plugin, put the **same** `ROAM_ARCHIVE_KEY`
+On the second machine: install and enable the plugin, put the **same** `ROAM_ARCHIVE_KEY`
 (and the S3 credentials, if using S3/R2) in that home's `.env`, set the same
 backend settings, then:
 
