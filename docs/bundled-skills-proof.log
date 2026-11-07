@@ -1,0 +1,134 @@
+Live bundled-skills proof — real Hermes 0.22.5, hermes-roam 0.5.1 (committed HEAD 9372cb2)
+
+Homes (scratch, deleted after the run):
+  A = <work>/roam-homes/bs-a   (device bs-a; hermes profile create work — 58 bundled skills seeded into profiles/work/skills/)
+  B = <work>/roam-homes/bs-b   (device bs-b; its own hermes profile create work — its own 58 bundled copies)
+  store = <work>/roam-homes/bs-store (local backend)
+
+Every command ran as: cd <work> && HERMES_HOME=<home> hermes ...
+
+--------------------------------------------------------------------------------
+1. bs-a fixtures
+--------------------------------------------------------------------------------
+
+$ hermes profile create work --description "bundled-skills proof profile"
+  (seeds 58 bundled skills into profiles/work/skills/ with the v2 .bundled_manifest)
+
+user content added by hand:
+  skills/bs-fleet-note/SKILL.md (user skill, root home)
+  profiles/work/skills/bs-work-tool/SKILL.md (user skill, profile)
+  profiles/work/skills/apple/findmy/SKILL.md — one bundled skill EDITED on bs-a
+
+file-count check (roam's own walker, same include set as a push):
+  0.5.0 counterfactual (default rules): 311 files would travel, of which 305 are
+  Hermes-shipped bundled-skill files (58 skill trees + category DESCRIPTION.md)
+  0.5.1 (fixed): 7 files travel — SOUL.md, config.yaml, profiles/work/SOUL.md,
+  profiles/work/profile.yaml, skills/bs-fleet-note/SKILL.md,
+  profiles/work/skills/bs-work-tool/SKILL.md,
+  profiles/work/skills/apple/findmy/SKILL.md (the EDITED bundled skill)
+  load_rules (hashing all 58 bundled trees): 55 ms; walk: 55 ms
+roam: created the generation-0 remote head on the local backend and registered device 'bs-a'
+roam: next steps:
+  1. put ROAM_ARCHIVE_KEY in the active home's <home>/.env (same value on every device)
+  2. backend s3 also needs ROAM_S3_ACCESS_KEY_ID and ROAM_S3_SECRET_ACCESS_KEY in <home>/.env
+  3. run `hermes roam doctor`
+  4. run `hermes roam push`
+  5. on the second device: `hermes roam pull`, review, then `hermes roam pull --apply`
+roam: never paste secret values into chat or files roam writes
+roam: covered root <work>/roam-homes/bs-a — profiles: default(synced), work(synced)
+$ hermes roam push --dry-run
+roam: dry run — would push 8 files, 81629 bytes as generation 1
+roam: would send 8 file(s):
+would push SOUL.md
+would push config.yaml
+would push profiles/work/SOUL.md
+would push profiles/work/profile.yaml
+would push profiles/work/skills/apple/findmy/SKILL.md
+would push profiles/work/skills/bs-work-tool/SKILL.md
+would push roam/installed-plugins.json
+would push skills/bs-fleet-note/SKILL.md
+$ hermes roam rules (excerpt)
+roam: effective scope rules (home <work>/roam-homes/bs-a)
+local    67 generated rule(s): hub-installed skill trees and this device's UNMODIFIED Hermes bundled skills (each device's Hermes ships its own; a bundled skill you edited stays shared and syncs like your own)
+local    67 generated rule(s): hub-installed skill trees and this device's UNMODIFIED Hermes bundled skills (each device's Hermes ships its own; a bundled skill you edited stays shared and syncs like your own)
+defaults: 98 local, 19 ignored, 14 shared rules; full list: hermes roam rules --json
+defaults: 98 local, 19 ignored, 14 shared rules; full list: hermes roam rules --json
+host keys kept local on pull:
+host keys kept local on pull:
+keep     terminal
+keep     terminal.*
+$ hermes roam push
+roam: pushed generation 1 (8 files, 4737 bytes)
+roam: bundle bundles/000001-bs-a-fdc2d4746910.roam
+roam: covered root <work>/roam-homes/bs-a — profiles: default(synced), work(synced)
+--------------------------------------------------------------------------------
+2. bs-b: its own Hermes seeds its own bundled copies; then it pulls
+--------------------------------------------------------------------------------
+$ hermes profile create work --description "bundled-skills proof profile"   (on bs-b)
+  Edit ~/work/roam-homes/bs-b/profiles/work/SOUL.md to customize personality
+
+pre-pull snapshot: 58 bundled trees hashed; 58 match their
+own .bundled_manifest origin hash (bs-b's Hermes shipped and owns these copies)
+$ hermes roam init
+roam: never paste secret values into chat or files roam writes
+roam: covered root <work>/roam-homes/bs-b — profiles: default(synced), work(synced)
+$ hermes roam pull   (plan only)
+roam: plan only — nothing was written (remote generation 1)
+would add shared profiles/work/skills/bs-work-tool/SKILL.md
+would add shared skills/bs-fleet-note/SKILL.md
+roam: 2 remote file(s) your scope rules keep local:
+kept local by your scope rules: profiles/work/skills/apple/findmy/SKILL.md
+kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: profiles/work/skills/apple/findmy/SKILL.md, roam/installed-plugins.json
+roam: 4 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: review the plan, then run `hermes roam pull --apply`
+roam: --apply rewrites home files after making a backup
+roam: covered root <work>/roam-homes/bs-b — profiles: default(synced), work(synced)
+$ hermes roam pull --apply
+roam: installed remote generation 1
+roam: covered root <work>/roam-homes/bs-b — profiles: default(synced), work(synced)
+backup       <work>/roam-homes/bs-b/roam/backups/20261107-210110
+roam: 2 remote file(s) kept local by your scope rules:
+kept local by your scope rules: profiles/work/skills/apple/findmy/SKILL.md
+kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: profiles/work/skills/apple/findmy/SKILL.md, roam/installed-plugins.json
+roam: 4 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 2 file(s) written, 0 deleted
+post-pull hash check: 58/58 bundled trees byte-identical to the
+pre-pull snapshot AND to their own .bundled_manifest origin hash — the pull
+overwrote nothing and the deletion logic removed nothing (0 deleted)
+user skills arrived:
+  skills/bs-fleet-note/SKILL.md: present
+  profiles/work/skills/bs-work-tool/SKILL.md: present
+modified bundled skill (findmy): still bs-b's pristine copy
+
+--------------------------------------------------------------------------------
+3. Verdict
+--------------------------------------------------------------------------------
+
+- 0.5.0 would have pushed 312 files from this home (311 walked files +
+  roam/installed-plugins.json), 305 of them Hermes-shipped bundled-skill
+  files. 0.5.1 pushes 8: the two user skills, the ONE bundled skill the
+  user edited on bs-a (findmy), the identity/config files, and the pinned
+  plugin list. load_rules (hashing all 58 bundled trees with the
+  skills_sync scheme) took 55 ms; the walk 55 ms — the pristine trees are
+  pruned from the walk entirely, so the push is FASTER than 0.5.0, which
+  sha256-hashed all 305 bundled files.
+- bs-b's pull delivered both user skills and left all 58 bundled trees
+  byte-identical (verified against the pre-pull snapshot AND against each
+  tree's own .bundled_manifest origin hash); 0 files were deleted.
+- The modified bundled skill (findmy) is user work, so it traveled in the
+  bundle — but bs-b holds a pristine copy of its own, so bs-b's rules
+  refuse it and the pull lists it as kept local. Receiver-side effect
+  (documented): a device that does NOT hold a pristine copy would install
+  it, and Hermes there would then treat that tree as user-modified — the
+  correct verdict for the user's own edit. Under 0.5.0 the same pull would
+  have overwritten all 305 bundled files with bs-a's copies, and
+  skills_sync on bs-b would have seen hash mismatches forever after —
+  silently freezing bs-b's bundled-skill updates.
+- `hermes roam rules` labels the 67 generated rules (57 unmodified bundled
+  trees + 10 category DESCRIPTION.md files) as device-generated, not user
+  policy.
+
+PROOF COMPLETE — pristine bundled skills never travel in either direction;
+user skills and genuinely modified bundled skills do.

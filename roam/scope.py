@@ -34,6 +34,7 @@ import copy
 import fnmatch
 import hashlib
 import json
+import os
 import re
 import threading
 from dataclasses import dataclass
@@ -257,10 +258,16 @@ _MISSING = object()
 
 @dataclass(frozen=True, slots=True)
 class Rules:
-    """Ordered (pattern, scope) rules plus the merged host key list."""
+    """Ordered (pattern, scope) rules plus the merged host key list.
+
+    ``device_rules`` are the GENERATED local rules (hub-lock and pristine
+    bundled-skill trees): they are derived from this device's own Hermes
+    state, not written by the user, and surfaces must label them as such.
+    """
 
     rules: tuple[tuple[str, Scope], ...] = DEFAULT_RULES
     host_keys: tuple[str, ...] = HOST_CONFIG_KEYS
+    device_rules: tuple[tuple[str, Scope], ...] = ()
 
     @classmethod
     def default(cls) -> Rules:
@@ -298,25 +305,226 @@ def _hub_lock_rules(home: Path) -> tuple[tuple[str, Scope], ...]:
     return tuple(rules)
 
 
+# ------------------------------------------------- bundled-skill provenance
+
+# Everything in this block replicates Hermes's own bundled-skill bookkeeping
+# from the READ-ONLY Hermes source (never imported — see docs/DESIGN.md):
+# the v2 manifest format is tools/skills_sync.py:113-128 (_read_manifest,
+# ``name:hash`` lines), the nested category layout is tools/skills_sync.py:
+# 170-184 (_discover_bundled_skills + _compute_relative_dest:
+# bundled/<category>/<skill> -> skills/<category>/<skill>), the origin
+# hash is tools/skills_sync.py:187-199 (dir_hash: MD5 over the sorted
+# package — relative POSIX path then file bytes — with generated runtime
+# caches excluded), the runtime-cache set is tools/skills_sync_optional.py:
+# 43-58 (_RUNTIME_CACHE_DIRS / _is_runtime_cache), the scanner exclusions
+# are agent/skill_utils.py:24-52 (EXCLUDED_SKILL_DIRS /
+# SKILL_SUPPORT_DIRS), and the skill name is tools/skill_usage.py:246-257
+# (read_skill_name: frontmatter ``name:`` first, directory name fallback).
+
+_BUNDLED_MANIFEST_NAME = ".bundled_manifest"
+_BUNDLED_DESCRIPTION_NAME = "DESCRIPTION.md"
+
+# agent/skill_utils.py:24-32 — dirs no skill scanner ever enters.
+_SCANNER_EXCLUDED_DIRS = frozenset((
+    ".git", ".github", ".hub", ".archive", ".curator_backups", ".locks",
+    ".venv", "venv", "node_modules", "site-packages", "__pycache__",
+    ".tox", ".nox", ".pytest_cache", ".mypy_cache", ".ruff_cache",
+))
+# agent/skill_utils.py:32 — support dirs inside a skill package.
+_SKILL_SUPPORT_DIRS = frozenset(("references", "templates", "assets", "scripts"))
+# tools/skills_sync_optional.py:43 — generated runtime state only.
+_BUNDLED_CACHE_DIRS = frozenset((
+    "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache",
+))
+
+
+def _bundled_is_runtime_cache(path: Path, relative: Path) -> bool:
+    """tools/skills_sync_optional.py:46-58 _is_runtime_cache, verbatim."""
+    parts = relative.parts
+    if any(part in _BUNDLED_CACHE_DIRS for part in parts[:-1]):
+        return True
+    if path.name in _BUNDLED_CACHE_DIRS and path.is_dir():
+        return True
+    return path.suffix in {".pyc", ".pyo"} and path.with_suffix(".py").is_file()
+
+
+def _bundled_dir_hash(directory: Path) -> str:
+    """tools/skills_sync.py:187-199 dir_hash: MD5 of the package's sorted
+    file paths and contents, runtime caches excluded. os.walk with
+    followlinks=False matches rglob's never-follow-symlinked-dirs behavior,
+    and sorting the absolute paths matches sorted(rglob(...))'s ordering."""
+    paths: list[Path] = []
+    for root, _dirs, files in os.walk(directory, topdown=True, followlinks=False):
+        paths.extend(Path(root) / name for name in files)
+    hasher = hashlib.md5()
+    for fpath in sorted(paths, key=str):
+        relative = fpath.relative_to(directory)
+        if _bundled_is_runtime_cache(fpath, relative):
+            continue
+        try:
+            if not fpath.is_file():
+                continue
+            hasher.update(str(relative).encode("utf-8"))
+            hasher.update(fpath.read_bytes())
+        except OSError:
+            continue  # tools/skills_sync.py:194 suppress(OSError) semantics
+    return hasher.hexdigest()
+
+
+def _skill_md_name(skill_md: Path, fallback: str) -> str:
+    """tools/skill_usage.py:246-257 read_skill_name: the frontmatter
+    ``name:`` field of a SKILL.md (first 4000 chars), else the fallback."""
+    try:
+        lines = [
+            line.strip()
+            for line in skill_md.read_text(encoding="utf-8-sig", errors="replace")[:4000].split("\n")
+        ]
+    except OSError:
+        return fallback
+    if "---" not in lines:
+        return fallback
+    block = lines[lines.index("---") + 1:]
+    block = block[:block.index("---")] if "---" in block else block
+    for line in block:
+        if line.startswith("name:"):
+            value = line.split(":", 1)[1].strip().strip("\"'")
+            if value:
+                return value
+    return fallback
+
+
+def _read_bundled_manifest(skills_dir: Path) -> dict[str, str]:
+    """tools/skills_sync.py:113-128 _read_manifest: ``{name: origin_hash}``;
+    v1 plain-name lines carry an empty hash (nothing can be proven)."""
+    try:
+        result: dict[str, str] = {}
+        for line in (skills_dir / _BUNDLED_MANIFEST_NAME).read_text(
+            encoding="utf-8-sig"
+        ).splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            if ":" in line:
+                name, _, hash_value = line.partition(":")
+                result[name.strip()] = hash_value.strip()
+            else:
+                result[line] = ""
+        return result
+    except OSError:
+        return {}
+
+
+def _iter_bundled_skill_mds(skills_dir: Path):
+    """Every candidate skill root under one skills/ tree, applying Hermes's
+    own scanner exclusions (agent/skill_utils.py:34-52): excluded dirs are
+    pruned, support packages inside a skill root are skipped, and symlinks
+    are never followed."""
+    for root, dirs, files in os.walk(skills_dir, topdown=True, followlinks=False):
+        root_path = Path(root)
+        dirs[:] = sorted(
+            d for d in dirs
+            if d not in _SCANNER_EXCLUDED_DIRS and not (root_path / d).is_symlink()
+        )
+        if "SKILL.md" not in files:
+            continue
+        skill_md = root_path / "SKILL.md"
+        rel = skill_md.relative_to(skills_dir)
+        if any(part in _SCANNER_EXCLUDED_DIRS for part in rel.parts):
+            continue
+        # support packages (references/…, scripts/…) inside a skill root
+        # are never standalone skills: agent/skill_utils.py:41-52.
+        excluded = False
+        for index, part in enumerate(rel.parts[:-1]):
+            if index > 0 and part in _SKILL_SUPPORT_DIRS and (
+                skills_dir.joinpath(*rel.parts[:index], "SKILL.md").is_file()
+            ):
+                excluded = True
+                break
+        if not excluded:
+            yield skill_md
+
+
+def _bundled_skill_rules(home: Path) -> tuple[tuple[str, Scope], ...]:
+    """LOCAL rules for the pristine Hermes bundled-skill trees of this
+    device (root home and every profiles/<name>/ alike).
+
+    Hermes seeds its bundled skills into every home's skills/ tree —
+    nested category paths included — and records each skill's origin hash
+    in skills/.bundled_manifest. A tree whose current content hash still
+    equals that origin hash is an UNMODIFIED Hermes copy: each device's
+    own Hermes ships (and updates) it, so it must never travel — a
+    foreign copy would overwrite the receiver's and skills_sync would
+    then see a hash mismatch and freeze the receiver's bundled updates
+    forever. A tree whose hash DIFFERS is the user's own work on top of a
+    bundled skill: no rule is generated and it syncs like any user skill
+    (the receiving Hermes treats it as user-modified there, which is
+    exactly the right verdict). A manifest entry without a hash (v1 line),
+    a missing manifest, or a tree the user deleted contributes nothing;
+    a user shared: rule in roam/rules.yaml still wins over these rules.
+
+    The category DESCRIPTION.md files Hermes seeds beside its bundled
+    skills are Hermes-shipped too and never travel.
+    """
+    home = Path(home)
+    trees = ["skills"]
+    profiles = home / "profiles"
+    if profiles.is_dir():
+        trees.extend(
+            f"profiles/{child.name}/skills"
+            for child in sorted(profiles.iterdir(), key=lambda item: item.name)
+            if child.is_dir() and child.name not in ("", ".", "..")
+        )
+    rules: list[tuple[str, Scope]] = []
+    for prefix in trees:
+        skills_dir = home / prefix
+        manifest = _read_bundled_manifest(skills_dir)
+        if not manifest:
+            continue
+        bundled_categories: set[str] = set()
+        for skill_md in _iter_bundled_skill_mds(skills_dir):
+            skill_dir = skill_md.parent
+            names = {skill_dir.name, _skill_md_name(skill_md, skill_dir.name)}
+            origin = next((manifest[name] for name in names if name in manifest), None)
+            if origin is None:
+                continue  # not Hermes-shipped: the default rules apply
+            rel = skill_dir.relative_to(home).as_posix()
+            if len(rel.split("/")) < 2 or rel.startswith("../"):
+                continue  # never a blanket skills/ rule
+            bundled_categories.add(skill_dir.parent.relative_to(home).as_posix())
+            if origin and _bundled_dir_hash(skill_dir) == origin:
+                rules.append((f"{rel}/", Scope.LOCAL))
+        for category_rel in sorted(bundled_categories):
+            if (home / category_rel / _BUNDLED_DESCRIPTION_NAME).is_file():
+                rules.append((f"{category_rel}/{_BUNDLED_DESCRIPTION_NAME}", Scope.LOCAL))
+    return tuple(rules)
+
+
 def load_rules(home: Path) -> Rules:
     """Load rules from {home}/roam/rules.yaml; user rules take precedence.
 
     The file is per-device policy (R2): it is read from this machine's home
-    only and never travels in a bundle, so each device's rules stay its own.
+    only and never travels in a bundle, so each device's rules stay their
+    own.
 
     The effective list is user rules (they extend the allowlist), then the
-    hub-lock rules for skills Hermes installed from the hub, then the defaults.
+    hub-lock rules for skills Hermes installed from the hub, then the
+    bundled-provenance rules for this device's pristine Hermes bundled
+    skills, then the defaults. The generated (hub + bundled) rules are
+    also returned as ``Rules.device_rules`` so surfaces can label them as
+    device-generated instead of user policy.
     """
     hub = _hub_lock_rules(home)
+    bundled = _bundled_skill_rules(home)
+    generated = hub + bundled
     path = Path(home) / "roam" / "rules.yaml"
     if not path.is_file():
-        return Rules(rules=hub + DEFAULT_RULES)
+        return Rules(rules=generated + DEFAULT_RULES, device_rules=generated)
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError) as exc:
         raise ConfigError(f"roam/rules.yaml is not readable YAML: {exc}") from exc
     if data is None:
-        return Rules(rules=hub + DEFAULT_RULES)
+        return Rules(rules=generated + DEFAULT_RULES, device_rules=generated)
     if not isinstance(data, dict):
         raise ConfigError("roam/rules.yaml must be a mapping of shared/local/ignored/host_keys")
     user: list[tuple[str, Scope]] = []
@@ -336,7 +544,11 @@ def load_rules(home: Path) -> Rules:
     if unknown:
         raise ConfigError(f"roam/rules.yaml: unknown key '{unknown[0]}'")
     host_keys = tuple(dict.fromkeys((*host_keys_raw, *HOST_CONFIG_KEYS)))
-    return Rules(rules=tuple(user) + hub + DEFAULT_RULES, host_keys=host_keys)
+    return Rules(
+        rules=tuple(user) + generated + DEFAULT_RULES,
+        host_keys=host_keys,
+        device_rules=generated,
+    )
 
 
 # ------------------------------------------------------------------ classifier

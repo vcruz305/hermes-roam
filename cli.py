@@ -729,13 +729,22 @@ def _cmd_rules(args: argparse.Namespace, as_json: bool) -> int:
         _json({"rules": entries, "host_keys": host_keys, **_covered_root_dict()})
         return 0
     defaults = {(pattern, value.value) for pattern, value in scope.DEFAULT_RULES}
-    user = [entry for entry in entries if entry not in defaults]
+    generated = {
+        (pattern, value.value) for pattern, value in getattr(rules, "device_rules", ())
+    }
+    user = [entry for entry in entries if entry not in defaults and entry not in generated]
     counts = {"local": 0, "ignored": 0, "shared": 0}
     for _, value in entries:
         if value in counts:
             counts[value] += 1
     print(f"roam: effective scope rules (home {home})")
     lines = [f"{value:<8} {pattern} (user rule; takes precedence)" for pattern, value in user]
+    if generated:
+        lines.append(
+            f"{'local':<8} {len(generated)} generated rule(s): hub-installed skill trees and "
+            "this device's UNMODIFIED Hermes bundled skills (each device's Hermes ships its own; "
+            "a bundled skill you edited stays shared and syncs like your own)"
+        )
     lines.append(
         f"defaults: {counts['local']} local, {counts['ignored']} ignored, "
         f"{counts['shared']} shared rules; full list: hermes roam rules --json"
@@ -762,7 +771,9 @@ def _cmd_rules(args: argparse.Namespace, as_json: bool) -> int:
         "via an explicit shared: rule in this device's roam/rules.yaml",
         "never:    secrets/.env/auth.json, the live state.db session database, "
         "raw sessions/ request dumps, caches/logs, host-specific config keys, "
-        "hub-installed skills, plugin code trees, roam/rules.yaml itself, and "
+        "hub-installed skills, Hermes bundled skills (unmodified — each "
+        "device's Hermes ships its own; a bundled skill you MODIFIED syncs "
+        "like your own), plugin code trees, roam/rules.yaml itself, and "
         "everything under <home>/roam/ (including pulled read-only session "
         "archives)",
         "",

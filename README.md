@@ -124,6 +124,20 @@ The only lever that can ever extend the allowlist is an explicit per-device
   an absolute path under a user home directory.
 - Hub-installed skills (they are reproducible from the hub; your own
   written skills keep syncing).
+- Hermes bundled skills — the ~58 skills Hermes itself seeds into every
+  home's `skills/` tree (nested category paths included) and every
+  `profiles/<name>/skills/`, plus the category `DESCRIPTION.md` files it
+  seeds beside them. Each device's own Hermes ships and updates its
+  bundled copies, so they never travel: roam proves a bundled tree is
+  unmodified by hashing it the same way Hermes's `skills_sync` does
+  (against the origin hash in `skills/.bundled_manifest`) and pins it
+  local. A bundled skill you **modified** (its hash no longer matches
+  that origin hash) is your own work: it keeps syncing like any user
+  skill, and the receiving Hermes treats it as user-modified there —
+  which is exactly the right verdict. A device that does not hold a
+  pristine copy of such a modified skill receives it; a device that
+  does keeps its own pristine copy and lists the remote one as refused
+  by its local policy.
 - Plugin code trees under `plugins/`, `tui-widgets/`, `desktop-plugins/`,
   and `pets/` — only the pinned name-and-sha list above ever travels, never
   code. `hooks/` is the documented exception in the optional tier: it syncs
@@ -339,7 +353,9 @@ host_keys:
 ```
 
 `shared:` entries extend the allowlist (this is how `hooks/`, `tui-widgets/`,
-or a hub-installed skill tree can be made to travel); `local:` and `ignored:`
+or a hub-installed skill tree can be made to travel; naming an unmodified
+bundled skill here opts it back into syncing, at the cost of the freezing
+effect described above); `local:` and `ignored:`
 entries narrow it further and always win over the defaults. User rules take
 precedence over the built-in defaults and are matched first; unknown keys and
 non-list values are rejected with a configuration error. `hermes roam rules`
@@ -350,7 +366,7 @@ leaves this machine. Each device's rules decide what that device can see and
 publish — two devices in the same fleet may legitimately run different rules,
 and a file neither device's rules allow stays put on both.
 
-### Installed plugins and hub skills
+### Installed plugins, hub skills, and bundled skills
 
 Plugin code is never synced: each tree under `plugins/` is a checkout whose
 provenance Hermes owns. Instead, roam records every installed plugin's name,
@@ -363,6 +379,21 @@ Skills installed from the skills hub are treated the same way: Hermes marks
 them in `skills/.hub/lock.json`, roam keeps those trees local, and the other
 device reinstalls them from the hub. Skills you wrote yourself under
 `skills/` sync as ordinary files.
+
+Hermes's own bundled skills get the same treatment, proven the same way
+Hermes proves them to itself: `skills_sync` seeds every home (and every
+profile) with the bundled skills and records each skill's origin hash in
+`skills/.bundled_manifest`. Roam re-computes that hash for every tree the
+manifest names — the exact MD5-over-the-package scheme `skills_sync` uses,
+runtime caches excluded, replicated from Hermes's source without importing
+it — and pins every tree whose hash still matches as local, top level and
+inside every `profiles/<name>/skills/` alike. Unmodified bundled skills
+therefore never leave the machine and a pull never overwrites them, so
+`skills_sync` on every device keeps updating its own copies (before 0.5.1 a
+cross-version pull silently froze the receiver's bundled updates). A
+bundled skill whose hash no longer matches is one you edited: it syncs like
+your own skills, and Hermes on the receiving device treats it as
+user-modified there — the correct verdict for your work.
 
 ## How it is safe
 

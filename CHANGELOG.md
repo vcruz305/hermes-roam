@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.5.1 — 2026-11-07
+
+Hermes bundles ~58 skills into every home's `skills/` tree (nested category
+paths included) and every `profiles/<name>/skills/`, tracking each skill's
+origin hash in `skills/.bundled_manifest`. 0.5.0 classified all of them
+SHARED, so every push carried hundreds of Hermes-shipped files and a pull
+onto a device running a different Hermes release overwrote that device's
+bundled copies — Hermes's own `skills_sync` then saw a hash mismatch and
+silently froze the receiver's bundled updates. Hub-installed skills already
+never traveled; bundled skills now get the same treatment, proven the same
+way Hermes proves them to itself.
+
+### Bundled-skill provenance
+
+- Every bundled tree whose current content hash still equals its
+  `.bundled_manifest` origin hash — the exact `skills_sync` hash scheme
+  (MD5 over the sorted package, runtime caches excluded), replicated from
+  Hermes's read-only source without importing it — classifies LOCAL at the
+  top level and inside every `profiles/<name>/skills/`, and the category
+  `DESCRIPTION.md` files Hermes seeds beside bundled skills are covered
+  too. Each device keeps (and keeps updating) the copy its own Hermes
+  ships; a pull lists remote bundled paths as refused by local policy and
+  never overwrites or deletes them.
+- A bundled skill whose hash differs is the user's own work: it stays
+  SHARED and syncs like any user skill. The receiving Hermes treats it as
+  user-modified there — the correct verdict. A device that holds no
+  pristine copy of such a modified skill receives it.
+- A missing manifest, a v1 hashless line, or a tree the user deleted
+  contributes nothing; a user `shared:` rule in `roam/rules.yaml` still
+  wins over the generated rules. `hermes roam rules` labels the generated
+  (hub + bundled) rules as device-generated, not user policy.
+
 ## 0.5.0 — 2026-11-07
 
 Hermes Roam now works for a multi-profile fleet, not just the default
