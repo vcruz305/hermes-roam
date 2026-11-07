@@ -1,0 +1,230 @@
+# Hermes Roam — design contract (frozen; 0.2.0 surface revision)
+
+Plugin id: `hermes-roam`, version 0.2.0. CLI: `hermes roam …`. Slash: `/roam …`. Tools: `roam_status`, `roam_push`, `roam_pull`.
+Package layout (plugin dir == repo root, Hermes imports it as a package, so `from . import x` and
+`from .roam import engine` work; `roam/` must never import Hermes at module top level):
+
+```
+hermes-roam/
+  plugin.yaml            # manifest (Lane C)
+  __init__.py            # register(ctx)  (Lane C)
+  schemas.py tools.py commands.py cli.py hooks.py settings.py   (Lane C)
+  roam/__init__.py       # empty
+  roam/model.py          # dataclasses + constants (frozen, parent)
+  roam/errors.py         # exception hierarchy (frozen, parent)
+  roam/archive.py        # encrypted bundle build/open           (Lane A1)
+  roam/inventory.py      # home walk + scope classification       (Lane A1)
+  roam/scope.py          # scope rules + config.yaml merge        (Lane A1)
+  roam/head.py           # Head serialize/sign/verify             (Lane A2)
+  roam/restore.py        # journaled transactional install        (Lane A2)
+  roam/engine.py         # push/pull/status/diff orchestration    (Lane A2)
+  roam/backends/__init__.py  # open_backend(settings) factory     (Lane B)
+  roam/backends/base.py  # Backend protocol (frozen, parent)
+  roam/backends/s3.py    # S3/R2 via boto3 (lazy import)          (Lane B)
+  roam/backends/git.py   # git remote via subprocess              (Lane B)
+  roam/backends/local.py # directory backend (tests + demo)       (Lane B)
+  skills/roam-setup/SKILL.md   (Lane C)
+  tests/                 # each lane owns tests/test_<its module>.py
+  README.md              # (Lane D / integration)
+```
+
+## Core concepts
+
+**Home**: the active Hermes home (`get_hermes_home()` at call time; tests pass a tmp path). Named
+profiles live at `<home>/profiles/<name>/` with the same layout; the default profile IS the home root.
+
+**Scope classes** (`roam.model.Scope`): `SHARED` (synced), `LOCAL` (never leaves the machine),
+`SESSIONS` (opt-in, default off), `CRON` (opt-in, default off), `IGNORED` (caches etc.; never even listed).
+Classification is by relative POSIX path inside the home (and the same rules re-applied inside each
+`profiles/<name>/`, more restrictive class wins). Default rules — `roam/scope.py::DEFAULT_RULES`,
+first match wins; the table is an ALLOWLIST, and the unmatched default is LOCAL:
+
+```
+LOCAL   : .env, auth.json, auth.json.*, *.lock, auth.lock, state.db, state.db-*, deliveries.db*,
+          executions.db*, gateway/, gateway-service/, bin/, hermes-agent/, plugin-data/,
+          desktop/, profiles/*/home/, context_length_cache.yaml*, channel_directory.json,
+          *.bak*, *.before-*, *.pid, *.tmp, node_modules/, installs/, hooks/, tui-widgets/,
+          desktop-plugins/, pets/
+IGNORED : cache/, audio_cache/, image_cache/, logs/, backups/, bootstrap-cache/, checkpoints/,
+          sandboxes/, state-snapshots/, tmp/, __pycache__/, .git/, venv/, .venv/, reports/,
+          profile-archives/, skills/.* (Hermes-managed hub state: .hub/, .locks/, .archive/,
+          .curator_backups/, usage and curator bookkeeping)
+SESSIONS: sessions/, profiles/*/sessions/
+CRON    : cron/, profiles/*/cron/
+SHARED  : config.yaml, SOUL.md, hermes-pack.yaml, memories/, skills/, skins/, roam/rules.yaml,
+          profiles/*/config.yaml, profiles/*/SOUL.md, profiles/*/hermes-pack.yaml,
+          profiles/*/memories/, profiles/*/skills/, profiles/*/skins/, profiles/*/roam/rules.yaml
+LOCAL   : plugins/** — plugin code is a git checkout whose provenance Hermes
+          owns; it never travels (this rule takes precedence over the shared
+          content rules above; plugin .git/ dirs stay IGNORED). Roam syncs a
+          generated roam/installed-plugins.json (names + pinned sha) so the
+          pull side can say "install these with `hermes plugins install`".
+DEFAULT : LOCAL — any path no rule matches never leaves the machine.
+```
+Note on `plugins/`: user plugin CODE is NOT synced. Hub-installed skills are NOT synced either:
+Hermes records them in `skills/.hub/lock.json` (the marker its own code reads), and
+`load_rules` turns each recorded `install_path` into a LOCAL rule (an unreadable or
+traversal-shaped lock adds nothing; the `skills/.*` rule keeps the lock tree IGNORED).
+User-written skills under `skills/` DO sync as files.
+Users override rules in `<home>/roam/rules.yaml` (`shared: [...]`, `local: [...]`, `ignored: [...]`);
+user rules take precedence over defaults — `shared:` entries extend the allowlist (e.g. opting a
+`hooks/` tree back in), `local:`/`ignored:` narrow it. Anything under `<home>/roam/` except
+`rules.yaml` is LOCAL.
+
+**Host-scoped config keys** (`roam/scope.py::HOST_CONFIG_KEYS`, dotted paths): on push these keys are
+REMOVED from the bundled `config.yaml`; on pull the local values for these keys are kept and everything
+else comes from remote. Default list: `terminal`, `terminal.*`, `display.interface`, `paths`, `paths.*`,
+`gateway.*.token_env`? NO — tokens are env names not values, leave them. Default: `terminal`, `paths`,
+`display.interface`, `browser.executable`, `mcp_servers.*.command`, `plugins.entries.hermes-roam`,
+plus anything whose VALUE is an absolute path under the user's home directory (`/root/...`, `/home/...`,
+`/Users/...`, `C:\\...`) — those are detected, not listed. User adds more under `rules.yaml: host_keys: []`.
+`merge_config(remote_text, local_text, host_keys) -> str` must preserve key order and comments where
+practical (use ruamel? NO — only PyYAML is available; comments are lost; say so in README). Output must
+round-trip through `yaml.safe_load` identically to the intended merged dict.
+
+**Bundle**: one zip built in memory-bounded streaming fashion from the SHARED (+ opted-in) files,
+plus `roam/manifest.json` (file list with sha256 + size + mode), encrypted as a single AES-256-GCM
+envelope (12-byte random nonce, AAD = canonical JSON header with `v`, `device`, `generation`,
+`created_at`, `plain_sha256`, `plain_size`, `key_id`). Key = 32 bytes from secret `ROAM_ARCHIVE_KEY`
+(base64 or hex; `roam.model.decode_key`). Zip extraction refuses: absolute names, `..`, symlinks,
+members > `ArchiveLimits`, total > limit, non-regular file types. Port from vigil `secure_archive.py`.
+
+**Head** (`roam/model.py::Head`): the single mutable object at the remote. Fields: `v=1`, `generation`
+(int, +1 per push), `device` (name), `hermes_version` (str), `created_at` (float), `bundle_key`
+(remote object key `bundles/<generation>-<device>-<sha12>.roam`), `bundle_sha256`, `bundle_size`,
+`plain_sha256`, `files` (dict relpath -> full FileEntry.to_dict() = {sha256, size, mode, scope};
+the scope is advisory — pull re-classifies with local rules), `parent_generation`, `devices` (dict device ->
+{last_push_generation, last_pull_generation, hermes_version, platform, seen_at}), `sig` (HMAC-SHA256
+over canonical JSON without `sig`, key = `ROAM_ARCHIVE_KEY` derived subkey `HKDF(info=b"roam-head")`).
+Head is stored as JSON bytes at key `HEAD`. Bundles are immutable objects.
+
+**Backend protocol** (`roam/backends/base.py`) — frozen:
+```python
+class Backend(Protocol):
+    name: str                                  # "s3" | "git" | "local"
+    def get_head(self) -> tuple[bytes, str] | None: ...   # (json bytes, etag/version token) or None if absent
+    def put_head(self, data: bytes, expected: str | None) -> str: ...
+        # compare-and-swap: expected=None means "must not exist"; raise HeadConflict on mismatch; return new token
+    def put_blob(self, key: str, source: Path) -> None: ...      # immutable; raise BlobExists if key exists
+    def get_blob(self, key: str, dest: Path, *, max_bytes: int) -> None: ...
+    def blob_exists(self, key: str) -> bool: ...
+    def ping(self) -> str: ...                 # cheap reachability + credential check; returns human summary
+```
+`open_backend(settings: RoamSettings, *, home: Path) -> Backend` in `roam/backends/__init__.py`.
+`validate_key` raising `ConfigError` on a bad object key is correct. The git backend's `put_head`
+with `expected=None` means "no HEAD.json at the remote tip". Git backend: one
+clone per home at `<home>/roam/git-mirror/` (LOCAL), branch `roam`, HEAD = file `HEAD.json`, blobs under
+`bundles/`; CAS is on the head CONTENT, not the branch tip — a push first uploads its bundle (a
+commit that moves the tip) and then writes the head with the tip it read before the upload, so
+`put_head` compares the HEAD.json blob sha at the read tip with the one at the current tip
+(identical → proceed, different → HeadConflict) and leases the push to the CURRENT tip
+(`--force-with-lease=roam:<current_sha>`), so any concurrent movement still fails;
+every git call via `subprocess.run([...])` argv lists, never a shell, with timeouts; SSH or https remotes
+as the user configured them (we never store git credentials). S3: boto3 imported lazily inside
+functions; CAS via `IfMatch`/`IfNoneMatch` on `put_object` (R2 and S3 support both); endpoint_url for R2.
+
+**Settings** (`roam/model.py::RoamSettings` dataclass, built by Lane C `settings.py` from
+`ctx.get_config` + `get_secret`): `backend` ("s3"|"git"|"local"), `device_name` (default hostname),
+`s3_bucket`, `s3_prefix` (default "hermes-roam"), `s3_endpoint_url` (R2), `s3_region`,
+`git_remote` (url), `git_branch` ("roam"), `local_dir`, `sync_sessions` (False), `sync_cron` (False),
+`auto_push` (False), `auto_pull_shared` (False), `allow_agent_apply` (False — the model may not run
+the journaled install unless the user opts in; the gate fails closed when no configuration context
+exists), `push_debounce_seconds` (300), `max_bundle_bytes`
+(2 GiB), plus secrets (never persisted by us): `archive_key: bytes`, `s3_access_key_id`,
+`s3_secret_access_key`. Secret env names: `ROAM_ARCHIVE_KEY`, `ROAM_S3_ACCESS_KEY_ID`,
+`ROAM_S3_SECRET_ACCESS_KEY`.
+
+**Engine** (`roam/engine.py::Engine(home: Path, settings: RoamSettings, backend: Backend,
+hermes_version: str, clock=time.time)`):
+- Runs crash recovery (`roam.restore.recover`) at the start of status/diff/push/pull/
+  doctor; any rolled-back remainder is reported through the `recovered: str | None`
+  field on Status/PullResult/PushResult (a message describing what was undone).
+- `status() -> Status`: local generation (from `<home>/roam/state.json`: last_pushed_generation,
+  last_pulled_generation, last_seen_generation, last_push_at, last_pull_at), remote head summary,
+  `remote_ahead: bool`, `local_dirty: bool` + `dirty_count` (what a push would carry), device list.
+  On a backend error: `remote_ahead=False` (never True), `remote_generation=None`,
+  `error` set — no generation arithmetic is done on a missing value.
+  The device list is the remote roster plus this device synthesized from local state, so pull-only
+  devices appear in `hermes roam devices`; pulls never write into the remote head's roster — the
+  device's next push records its true `last_pull_generation` from local state.
+- `diff() -> Diff`: preview of what a pull would change — lists added/changed/removed relpaths
+  local-vs-remote-head, grouped by scope class. The CLI prints it as a "pull preview".
+- `push(*, force=False, dry_run=False) -> PushResult`: refuses with
+  `RoamError("... run `hermes roam init` first")` when `<home>/roam/state.json` is
+  absent; refuses with `RemoteAhead` if the remote head's
+  generation != local last-seen generation unless `force`; build bundle; `put_blob`; `put_head` CAS
+  with the token read at the start; update state.json. Never leaves a half state: blob first, head last.
+  `PushResult.files` carries the bundle relpaths on both dry runs and real pushes.
+  A push that would change nothing is skipped (`skipped_reason="nothing to push"`; config.yaml is
+  compared via its stripped-text digest and roam/installed-plugins.json is excluded) — hooks rely on
+  this skip.
+- `pull(*, apply=False, classes: set[Scope] | None = None, dry_run=False,
+  include_prefixes: list[str] | None = None, overwrite_conflicts: bool = False) -> PullResult`:
+  download head + bundle, verify sig and
+  sha, extract into `<home>/roam/staging/<generation>/`, compute the plan (what would change).
+  With `apply=False` return the plan only. With `apply=True` install via `roam.restore.apply(...)`
+  (journal, backup of replaced files into `<home>/roam/backups/<ts>/`, rollback on failure),
+  merge config.yaml with host keys, write state.json. `PullResult.conflicts` lists relpaths whose
+  LOCAL content diverged from the last sync point and that the remote also changed or deleted;
+  `PullResult.skipped_local` lists remote paths the local rules classify as LOCAL/IGNORED.
+  Without `overwrite_conflicts` the conflicting paths are NOT written or deleted — they are
+  listed and everything else applies; with it they are overwritten (backup kept).
+  `classes` defaults to SHARED (+ SESSIONS/CRON
+  when the settings opt in). `include_prefixes` restricts the pulled file set to relpaths inside the
+  prefixes (e.g. ["skills/", "memories/", "SOUL.md", "profiles/*/skills/"]); everything else — always
+  including config.yaml — is left for a full pull, and the local `last_seen_generation` is NOT
+  advanced by such a partial pull. Pull refuses (VerifyError naming "rollback") when the signed
+  remote generation is below the locally recorded floor, unless `allow_rollback=True`.
+- `init(*, create_remote: bool) -> str`: validates settings, `backend.ping()`, writes an initial head
+  if none exists (generation 0, no bundle), writes state.json; returns a human summary. Init never
+  advances `last_seen_generation`.
+- `last_seen_generation` advances ONLY on a successful full push or full pull — never on init,
+  status, diff, or a restricted (include_prefixes) pull.
+- `doctor() -> list[Check]`: key decodes to 32 bytes; backend ping; head signature verifies; hermes
+  version compare; bundle size estimate vs limit; staging/backup dirs writable; git present (git backend).
+All results are plain dataclasses with `.to_dict()` so tools can `json.dumps` them and CLI can render.
+Engine never calls `print`, never reads Hermes config, never spawns `hermes`.
+
+**Errors** (`roam/errors.py`): `RoamError` base; `ConfigError`, `BackendError`, `HeadConflict`,
+`BlobExists`, `RemoteAhead`, `VerifyError` (bad sig/sha), `ArchiveError`, `RestoreError`,
+`VersionMismatch`. Every one has a human `__str__` that names the fix.
+
+**Plugin surface (Lane C)**:
+- `roam/scope.py::load_rules(home) -> Rules` returns the `Rules` dataclass (ordered
+  `(pattern, scope)` rules plus the merged `.host_keys`); user rules precede defaults.
+- `plugin.yaml`: name `hermes-roam`, manifest_version 2, `requires_hermes: ">=0.22.0"`, tools
+  `roam_status roam_push roam_pull`, hooks `on_session_end on_session_start pre_llm_call`, `requires_env`
+  rich entries (secret: true) for the three secrets with S3 ones optional (only `ROAM_ARCHIVE_KEY`
+  required — but a required env disables the plugin when missing; so declare only ROAM_ARCHIVE_KEY as
+  required, the S3 pair in config_schema docs + checked at runtime), `config_schema` for every setting,
+  `python_dependencies: ["cryptography>=42,<51", "boto3>=1.34,<2"]`, license Apache-2.0, tags.
+- CLI `hermes roam init|status|diff|push|pull|devices|doctor|rules` with `--json`, `--apply`,
+  `--overwrite-conflicts`, `--force`, `--dry-run`, `--sessions`, `--cron` flags; exit codes
+  0/1/2 (2 = conflict / remote ahead; 1 = error, including an unreachable backend —
+  `roam: remote unreachable: <error>` — and push before init). `pull --apply` prints every
+  path it kept local (`kept local (changed here since last sync): <path>`,
+  `kept local by your scope rules: <path>`) and every surface prints `roam: recovered: <...>`
+  when the engine rolled a crashed operation back; `push --dry-run` lists the bundle's
+  file paths (40-line cap) and refuses before init.
+- Slash `/roam` with the same verbs, short text output (Telegram-friendly, no tables);
+  extra words are validated before anything runs (`push`: `force`, `dry`/`dry-run`;
+  `pull`: `apply`, `overwrite`; `/roam pull apply overwrite` is the only overwriting form).
+- Tools return JSON strings; `roam_pull` with `apply=true` is the only destructive tool and must say so
+  in its schema description. `apply=true` is refused with a `PermissionError` result unless
+  `allow_agent_apply` is true (default false, fails closed); the refusal names the setting and
+  the two human-run commands (`/roam pull apply`, `hermes roam pull --apply`). `roam_status`
+  never claims the remote is ahead on a backend error and its `fix` tells the model what to do.
+- Hooks: `on_session_end` → if `auto_push` and SHARED dirty and debounce elapsed: push in a daemon
+  thread with a 120 s cap, never block, never raise. `on_session_start` → checks the remote head
+  with `status()` ONLY (never `diff()`); an unreachable backend is ignored — it is never reported
+  as ahead; with `auto_pull_shared` the engine first pulls ONLY ["skills/", "memories/",
+  "SOUL.md"] (plus the same under profiles/*/) via `include_prefixes` with
+  `overwrite_conflicts=False` — never config.yaml — and the
+  pending notice still fires for everything that remains. `pre_llm_call` on `is_first_turn` returns
+  `{"context": "..."}` one-liner when a notice is pending, then clears it. No auto-pull of config ever.
+  Watchdog caps (120 s auto-push, 15 s start check) only decide when an overrun is logged at
+  WARNING — a Python thread cannot be stopped; the real bounds are the backend deadlines
+  (git 60 s total per operation chain, each network-facing call 20 s, ssh connect 10 s;
+  S3 5 s connect + 30 s read per attempt, at most two attempts per operation).
+- Everything hooks/tools/commands do goes through `Engine`; they construct it via
+  `settings.build_engine()` which resolves `get_hermes_home()` and `get_secret` at call time.

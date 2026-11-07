@@ -1,0 +1,181 @@
+# Round-4 demo-two-homes.sh transcript — exit 0 — real Hermes 0.22.5, plugin 0.4.0 from main
+# Stage 3 (new in 0.4.0): roam history lists every pushed generation; restore --apply
+# recovers an older generation verbatim (backup first) and rolls forward; status settles clean.
+
+
+=== stage 0 — fixtures ===
+✓ Plugin hermes-roam enabled.
+
+✓ Plugin hermes-roam enabled.
+
+
+=== stage 1 — local backend: alpha pushes ===
+roam: pushed generation 1 (6 files, 1761 bytes)
+roam: bundle bundles/000001-alpha-837271aeeb26.roam
+
+=== stage 1 — beta pulls ===
+roam: connected to the local backend (local backend ready: <tmp>/roam-demo-r4/remote (42167 MiB free)); the remote head is at generation 1, last pushed by 'alpha'; pull before pushing anything
+pull preview: would add shared memories/MEMORY.md
+pull preview: would add shared profiles/p/config.yaml
+pull preview: would update shared SOUL.md
+roam: installed remote generation 1
+backup       <tmp>/roam-demo-r4/beta/roam/backups/20261107-030343
+roam: 1 file(s) kept local (changed here since last sync):
+kept local (changed here since last sync): SOUL.md
+roam: run `hermes roam pull --apply --overwrite-conflicts` to overwrite them (a backup is kept)
+roam: 1 remote file(s) kept local by your scope rules:
+kept local by your scope rules: roam/installed-plugins.json
+roam: 1 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: would merge profiles/p/config.yaml (host-scoped keys stay local)
+roam: 1 path(s) changed locally since the last sync and remotely at the same time (conflicts) were kept local: SOUL.md; resolve by pushing (this device's version win…
+roam: 2 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: config.yaml merged; host-scoped keys kept from the local config
+roam: 1 file(s) written, 0 deleted
+verified: shared memory installed; host keys and .env untouched; the diverging local SOUL.md kept and listed
+
+=== stage 1 — secrets in config.yaml and profile configs never travel ===
+verified: api_key stripped on the way; the rest of the config merged
+
+=== stage 1 — conflict: both homes edit the same skill ===
+roam: pushed generation 2 (6 files, 1785 bytes)
+roam: bundle bundles/000002-alpha-c197b588c6a5.roam
+roam: the remote head is at generation 2 but this device last saw 1; pull first (or push with --force)
+roam: the remote head moved ahead — run `hermes roam pull` first
+verified: push without pulling is refused (remote ahead)
+
+=== stage 1 — pull --apply keeps the local edit and lists it ===
+roam: installed remote generation 2
+roam: 2 file(s) kept local (changed here since last sync):
+kept local (changed here since last sync): SOUL.md
+kept local (changed here since last sync): skills/demo-skill/SKILL.md
+roam: run `hermes roam pull --apply --overwrite-conflicts` to overwrite them (a backup is kept)
+roam: 1 remote file(s) kept local by your scope rules:
+kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 2 path(s) changed locally since the last sync and remotely at the same time (conflicts) were kept local: SOUL.md, skills/demo-skill/SKILL.md; resolve by pushin…
+roam: 3 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+verified: local edit kept and listed
+
+=== stage 1 — pull --apply --overwrite-conflicts replaces it, with a backup ===
+roam: installed remote generation 2
+backup       <tmp>/roam-demo-r4/beta/roam/backups/20261107-030351
+roam: 1 remote file(s) kept local by your scope rules:
+kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 3 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 2 file(s) written, 0 deleted
+verified: remote copy installed; the local edit is in roam/backups
+
+=== stage 1 — resolution: beta restores its edit and pushes; alpha pulls ===
+roam: pushed generation 3 (6 files, 1779 bytes)
+roam: bundle bundles/000003-beta-7497812069fb.roam
+roam: installed remote generation 3
+backup       <tmp>/roam-demo-r4/alpha/roam/backups/20261107-030354
+roam: 1 remote file(s) kept local by your scope rules:
+kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 4 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 1 file(s) written, 0 deleted
+alpha        pushed 2 pulled 0 hermes 0.22.5
+beta         pushed 3 pulled 2 hermes 0.22.5
+local dirty  0 shared files changed — nothing to push
+fleet        2 devices
+
+=== stage 1 — a local deletion propagates ===
+roam: pushed generation 4 (5 files, 1543 bytes)
+roam: bundle bundles/000004-alpha-d3681e612040.roam
+roam: installed remote generation 4
+backup       <tmp>/roam-demo-r4/beta/roam/backups/20261107-030402
+roam: 1 remote file(s) kept local by your scope rules:
+kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 4 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 1 deleted
+verified: the deletion propagated; the removed content is preserved in beta's roam/backups
+
+=== stage 1 — a shared config key edited on ONE device propagates ===
+roam: installed remote generation 4
+roam: 1 remote file(s) kept local by your scope rules:
+kept local by your scope rules: roam/installed-plugins.json
+roam: config.yaml: changed locally since the last sync; kept local (push from this device to publish it)
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 3 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+roam: pushed generation 5 (5 files, 1551 bytes)
+roam: bundle bundles/000005-beta-c03020cbee72.roam
+roam: installed remote generation 5
+backup       <tmp>/roam-demo-r4/alpha/roam/backups/20261107-030407
+roam: 1 remote file(s) kept local by your scope rules:
+kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: would merge config.yaml (host-scoped keys stay local)
+roam: 3 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: config.yaml merged; host-scoped keys kept from the local config
+roam: 0 file(s) written, 0 deleted
+verified: the shared key propagated; both devices kept their own api_key and terminal theme
+
+=== stage 1 — roam/rules.yaml stays per-device ===
+roam: nothing to push (nothing to push)
+roam: installed remote generation 5
+roam: 1 remote file(s) kept local by your scope rules:
+kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 4 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+verified: rules.yaml never travels; the narrowed push left both local SOUL.md files untouched
+
+=== stage 2 — git backend: fresh remote, alpha migrates and pushes ===
+roam: created the generation-0 remote head on the git backend and registered device 'alpha'
+roam: pushed generation 1 (5 files, 1519 bytes)
+roam: bundle bundles/000001-alpha-93d3bca13ac6.roam
+
+=== stage 2 — beta migrates, pulls, then pushes back ===
+roam: connected to the git backend (git backend ready: remote reachable, branch roam present); the remote head is at generation 1, last pushed by 'alpha'; pull before pushing anything
+roam: installed remote generation 1
+roam: 1 remote file(s) kept local by your scope rules:
+kept local by your scope rules: roam/installed-plugins.json
+roam: 1 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 4 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+roam: pushed generation 2 (5 files, 1585 bytes)
+roam: bundle bundles/000002-beta-c6990e64533a.roam
+
+=== stage 2 — alpha pulls beta's git-backend generation ===
+roam: installed remote generation 2
+backup       <tmp>/roam-demo-r4/alpha/roam/backups/20261107-030427
+roam: 1 remote file(s) kept local by your scope rules:
+kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 3 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 1 file(s) written, 0 deleted
+alpha        pushed 1 pulled 0 hermes 0.22.5
+beta         pushed 2 pulled 1 hermes 0.22.5
+verified: secrets never crossed the git backend either
+
+=== stage 3 — history: the remote store keeps every pushed generation ===
+roam: 2 recoverable version(s) in the remote store (newest first)
+gen 2 beta 2026-11-07 7772721a2130 64B present SOUL.md
+gen 1 alpha 2026-11-07 8abcffcf4c34 29B present SOUL.md
+roam: recover one with `hermes roam restore <path> --generation N --apply`
+roam: the remote store keeps every pushed generation; it is never pruned by roam
+verified: history lists every pushed generation of SOUL.md, newest first
+
+=== stage 3 — restore the older generation: plan first, then --apply ===
+roam: plan only — generation 1 still holds SOUL.md (sha256 8abcffcf4c34, 29B)
+roam: review it, then run the same command with --apply
+roam: restored SOUL.md from generation 1 into the home
+backup       <tmp>/roam-demo-r4/alpha/roam/backups/20261107-030434
+roam: the restored version is a local change; the next `hermes roam push` publishes it
+verified: generation 1 restored verbatim; the replaced version is in roam/backups
+
+=== stage 3 — roll forward to the newest generation ===
+roam: restored SOUL.md from generation 2 into the home
+backup       <tmp>/roam-demo-r4/alpha/roam/backups/20261107-030436
+roam: the restored version is a local change; the next `hermes roam push` publishes it
+local dirty  0 shared files changed — nothing to push
+fleet        2 devices
+verified: the newest generation is back and status is settled
+
+=== PROOF COMPLETE — both backends round-tripped under real Hermes ===
+artifacts under: <tmp>/roam-demo-r4 (remove it to clean up)

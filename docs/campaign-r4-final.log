@@ -1,0 +1,498 @@
+# Round-4 final campaign console log — seed 20261106 — hermes-roam main @ 4d7da0a (0.4.0-rc)
+# Fresh homes under ROAM_CAMPAIGN_BASE=<work>/roam-homes/r4-final (local AND git backends),
+# 92 minutes, 2026-11-06 17:27:45 → 18:59:25. Verdict: P1 violations 17 (all recovered
+# by the upgraded verifier through Engine.history/restore, see docs/verifier-r4-final.log);
+# P2 convergence failures 0 — the h2 status fix holds on both backends.
+
+# review2 s3 property harness — seed 20261106 — started 2026-11-06 17:27:45
+=== [local] random round 1 ===
+  user op: alpha edit memories/MEMORY.md (0942b669 -> 140cef2e)
+  user op: alpha delete SOUL.md (b56a4bc2 -> gone)
+  user op: beta create profiles/p/SOUL.md (none -> f03aeb6c)
+  interleave: beta pull_apply(overwrite=False) rc=0: roam: plan only — nothing was written (remote generation 0)
+roam: review the plan, then run `hermes roam pull --apply`
+roam: --apply rewrites home files after making a backup
+  interleave: alpha push rc=0: roam: pushed generation 1 (4 files, 1692 bytes)
+roam: bundle bundles/000001-alpha-0ed6868f6077.roam
+  interleave: alpha pull_apply(overwrite=False) rc=0: kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 3 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  interleave: beta push refused (as designed): roam: the remote head is at generation 1 but this device last saw 0; pull first (or push with --force)
+roam: the remote head moved ahead — run `hermes roam pull` first
+  interleave: beta push retry rc=0: roam: pushed generation 2 (5 files, 1563 bytes)
+roam: bundle bundles/000002-beta-76e12ffdab62.roam
+P2 ok (local round 1): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 ok (local round 1): 9 protected versions all present in homes or backups
+=== [local] random round 2 ===
+  user op: beta create skills/skill-a/SKILL.md (none -> 009a7aff)
+  interleave: beta push rc=0: roam: pushed generation 3 (6 files, 1821 bytes)
+roam: bundle bundles/000003-beta-9d54dae5df1f.roam
+  interleave: alpha push refused (as designed): roam: the remote head is at generation 3 but this device last saw 2; pull first (or push with --force)
+roam: the remote head moved ahead — run `hermes roam pull` first
+  interleave: alpha push retry rc=0: roam: nothing to push (nothing to push)
+  interleave: alpha pull_apply(overwrite=False) rc=0: kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 5 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  interleave: beta pull_apply(overwrite=False) rc=0: kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 5 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+P2 ok (local round 2): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 ok (local round 2): 10 protected versions all present in homes or backups
+=== [local] random round 3 ===
+  user op: alpha delete memories/MEMORY.md (8195db20 -> gone)
+  interleave: beta pull_apply(overwrite=False) rc=0: kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 5 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  interleave: alpha push rc=0: roam: pushed generation 4 (5 files, 1606 bytes)
+roam: bundle bundles/000004-alpha-2ce3ece21b5f.roam
+  interleave: beta push refused (as designed): roam: the remote head is at generation 4 but this device last saw 3; pull first (or push with --force)
+roam: the remote head moved ahead — run `hermes roam pull` first
+  interleave: beta push retry rc=0: roam: nothing to push (nothing to push)
+  interleave: alpha pull_apply(overwrite=False) rc=0: kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 4 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+P2 ok (local round 3): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 ok (local round 3): 10 protected versions all present in homes or backups
+=== [local] random round 4 ===
+  user op: beta create profiles/p/skills/pskill/SKILL.md (none -> 7a166ecf)
+  user op: beta create memories/MEMORY.md (none -> ebbdf667)
+  interleave: beta push rc=0: roam: pushed generation 5 (7 files, 2115 bytes)
+roam: bundle bundles/000005-beta-934725a0df38.roam
+  interleave: alpha push refused (as designed): roam: the remote head is at generation 5 but this device last saw 4; pull first (or push with --force)
+roam: the remote head moved ahead — run `hermes roam pull` first
+  interleave: alpha push retry rc=0: roam: nothing to push (nothing to push)
+  interleave: alpha pull_apply(overwrite=False) rc=0: kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 6 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  interleave: beta pull_apply(overwrite=False) rc=0: kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 6 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+P2 ok (local round 4): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 ok (local round 4): 12 protected versions all present in homes or backups
+=== [local] random round 5 ===
+  user op: beta edit profiles/p/SOUL.md (f03aeb6c -> 9793d703)
+  user op: beta create skills/skill-b/SKILL.md (none -> 42a5ca73)
+  user op: beta edit SOUL.md (c30d907b -> e8415e2b)
+  interleave: beta push rc=0: roam: pushed generation 6 (8 files, 2422 bytes)
+roam: bundle bundles/000006-beta-a489a21def0d.roam
+  interleave: alpha pull_apply(overwrite=False) rc=0: kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 4 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 3 file(s) written, 0 deleted
+  interleave: beta pull_apply(overwrite=False) rc=0: kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 7 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  interleave: alpha push rc=0: roam: nothing to push (nothing to push)
+P2 ok (local round 5): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 ok (local round 5): 15 protected versions all present in homes or backups
+=== [local] random round 6 ===
+  user op: beta edit memories/MEMORY.md (ebbdf667 -> 941b5491)
+  user op: beta delete skills/skill-b/SKILL.md (42a5ca73 -> gone)
+  user op: alpha edit profiles/p/SOUL.md (9793d703 -> aea705b7)
+  interleave: alpha pull_apply(overwrite=False) rc=0: roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 1 path(s) changed locally since the last sync and remotely at the same time (conflicts) were kept local: profiles/p/SOUL.md; resolve by pushing (this device's …
+roam: 6 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  interleave: beta push rc=0: roam: pushed generation 7 (7 files, 2209 bytes)
+roam: bundle bundles/000007-beta-534a2727ff61.roam
+  interleave: beta pull_apply(overwrite=False) rc=0: kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 6 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  interleave: alpha push refused (as designed): roam: the remote head is at generation 7 but this device last saw 6; pull first (or push with --force)
+roam: the remote head moved ahead — run `hermes roam pull` first
+  interleave: alpha push retry rc=0: roam: pushed generation 8 (7 files, 2233 bytes)
+roam: bundle bundles/000008-alpha-a6c18ab04f61.roam
+P2 ok (local round 6): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 ok (local round 6): 17 protected versions all present in homes or backups
+=== [local] random round 7 ===
+  user op: beta create skills/skill-b/SKILL.md (none -> b42fca03)
+  user op: beta edit SOUL.md (e8415e2b -> f6571dc0)
+  user op: beta create skins/theme-a/skin.css (none -> 87ffda9e)
+  interleave: alpha push rc=0: roam: nothing to push (nothing to push)
+  interleave: alpha pull_apply(overwrite=False) rc=0: kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 6 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  interleave: beta pull_apply(overwrite=False) rc=0: roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 1 path(s) changed locally since the last sync and remotely at the same time (conflicts) were kept local: SOUL.md; resolve by pushing (this device's version win…
+roam: 5 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  interleave: beta push rc=0: roam: pushed generation 9 (9 files, 2746 bytes)
+roam: bundle bundles/000009-beta-d3ef966a9d74.roam
+P2 ok (local round 7): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (local round 7): {"memories/MEMORY.md@140cef2e6557": ["NOWHERE"], "SOUL.md@36c1f5a2e92c": ["NOWHERE"]}
+=== [local] random round 8 ===
+  user op: beta edit skills/skill-b/SKILL.md (b42fca03 -> 0c2d7a63)
+  user op: beta create skills/deep/nested/x/SKILL.md (none -> 64a0f00a)
+  interleave: alpha push rc=0: roam: nothing to push (nothing to push)
+  interleave: beta push rc=0: roam: pushed generation 10 (10 files, 3037 bytes)
+roam: bundle bundles/000010-beta-f702bcebd928.roam
+  interleave: beta pull_apply(overwrite=False) rc=0: kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 9 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  interleave: alpha pull_apply(overwrite=False) rc=0: kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 7 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 2 file(s) written, 0 deleted
+P2 ok (local round 8): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (local round 8): {"memories/MEMORY.md@140cef2e6557": ["NOWHERE"], "SOUL.md@36c1f5a2e92c": ["NOWHERE"]}
+=== [local] random round 9 ===
+  user op: beta delete profiles/p/SOUL.md (aea705b7 -> gone)
+  interleave: alpha pull_apply(overwrite=False) rc=0: kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 9 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  interleave: beta pull_apply(overwrite=True) rc=0: roam: profiles/p/SOUL.md: deleted locally since the last sync; kept deleted (push from this device to publish the deletion)
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 8 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  interleave: alpha push rc=0: roam: nothing to push (nothing to push)
+  interleave: beta push rc=0: roam: pushed generation 11 (9 files, 2759 bytes)
+roam: bundle bundles/000011-beta-9f329c6e392c.roam
+P2 ok (local round 9): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (local round 9): {"memories/MEMORY.md@140cef2e6557": ["NOWHERE"], "SOUL.md@36c1f5a2e92c": ["NOWHERE"]}
+=== [local] random round 10 ===
+  user op: beta edit skills/deep/nested/x/SKILL.md (64a0f00a -> f25bddbd)
+  user op: beta create profiles/p/memories/PMEM.md (none -> bc2e3b9d)
+  user op: beta delete profiles/p/memories/PMEM.md (bc2e3b9d -> gone)
+  interleave: beta push rc=0: roam: pushed generation 12 (9 files, 2786 bytes)
+roam: bundle bundles/000012-beta-8a1a561d5070.roam
+  interleave: alpha push refused (as designed): roam: the remote head is at generation 12 but this device last saw 11; pull first (or push with --force)
+roam: the remote head moved ahead — run `hermes roam pull` first
+  interleave: alpha push retry rc=0: roam: nothing to push (nothing to push)
+  interleave: beta pull_apply(overwrite=False) rc=0: kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 8 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  interleave: alpha pull_apply(overwrite=False) rc=0: kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 8 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+P2 ok (local round 10): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (local round 10): {"SOUL.md@c30d907b20a6": ["NOWHERE"], "memories/MEMORY.md@140cef2e6557": ["NOWHERE"], "SOUL.md@36c1f5a2e92c": ["NOWHERE"], "profiles/p/SOUL.md@f03aeb6c4297": ["NOWHERE"]}
+=== [local] scenario: sessions opt-in on ONE device only ===
+  alpha config set sync_sessions: rc=0 ✓ Set plugins.entries.hermes-roam.settings.sync_sessions = True in <work>/roam-homes/r4-final/review2-s3-a/config.yaml
+  user op: alpha create sessions/s-alpha.json
+  user op: beta create sessions/s-beta.json
+  alpha push rc=0: roam: pushed generation 13 (10 files, 3043 bytes)
+roam: bundle bundles/000013-alpha-9ff49efc26c4.roam
+  beta pull --apply rc=0: kept local by your scope rules: sessions/s-alpha.json
+roam: 3 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json, sessions/s-alpha.json
+roam: 8 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  beta received alpha's session: False (expect False); beta kept its own session: True (expect True)
+  beta push rc=0: roam: nothing to push (nothing to push)
+  alpha pull --apply rc=0: kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 9 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  alpha kept its own session after pull: True (expect True)
+  alpha sync_sessions back to false: rc=0
+=== [local] scenario: profile secrets stay local ===
+  alpha push rc=0: roam: pushed generation 14 (11 files, 3176 bytes)
+roam: bundle bundles/000014-alpha-1bc5f9e9b6c3.roam
+  beta pull --apply rc=0: roam: would merge profiles/p/config.yaml (host-scoped keys stay local)
+roam: 8 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: config.yaml merged; host-scoped keys kept from the local config
+roam: 0 file(s) written, 0 deleted
+  shared profile note arrived: True; alpha api_key absent: True; alpha profile .env value absent: True
+=== [local] scenario: rules.yaml (local narrowing, shared extension) ===
+  beta push (rules.yaml stays local; the narrowed path is carried forward) rc=0: roam: nothing to push (nothing to push)
+  alpha pull --apply rc=0: kept local by your scope rules: sessions/s-alpha.json
+roam: 4 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json, sessions/s-alpha.json
+roam: 9 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  alpha received beta's rules.yaml: False (expect False)
+  alpha push rc=0: roam: nothing to push (nothing to push)
+  beta pull --apply rc=0: kept local by your scope rules: skills/skill-b/SKILL.md
+roam: 6 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json, sessions/s-alpha.jso…
+roam: 8 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  alpha skills/skill-b kept: True (expect True: the last synced fleet version); beta skills/skill-b kept local: True (expect True: narrowed by beta's own rules)
+P1 VIOLATION (local round 99): {"SOUL.md@c30d907b20a6": ["NOWHERE"], "memories/MEMORY.md@140cef2e6557": ["NOWHERE"], "SOUL.md@36c1f5a2e92c": ["NOWHERE"], "profiles/p/SOUL.md@f03aeb6c4297": ["NOWHERE"]}
+=== [local] scenario: pull --apply on an already-converged fleet ===
+  beta diff: roam: pull preview against remote generation 14
+pull preview: would add sessions sessions/s-alpha.json
+pull preview: would add local skills/skill-b/SKILL.md
+  beta pull --apply rc=0: kept local by your scope rules: skills/skill-b/SKILL.md
+roam: 6 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json, sessions/s-alpha.jso…
+roam: 8 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  beta backup dirs after the no-op pull: 3
+=== switching both homes to the git backend (local bare repo) ===
+  created bare repo <work>/roam-homes/r4-final/review2-s3-git-remote.git
+  alpha git: rc=0
+  alpha <work>/roam-homes/r4-final/review2-s3-git-remote.git: rc=0
+  alpha roam: rc=0
+  beta git: rc=0
+  beta <work>/roam-homes/r4-final/review2-s3-git-remote.git: rc=0
+  beta roam: rc=0
+  alpha init --create-remote rc=0:   3. run `hermes roam doctor`
+  4. run `hermes roam push`
+  5. on the second device: `hermes roam pull`, review, then `hermes roam pull --apply`
+roam: never paste secret values into chat or files roam writes
+  beta init rc=0:   3. run `hermes roam doctor`
+  4. run `hermes roam push`
+  5. on the second device: `hermes roam pull`, review, then `hermes roam pull --apply`
+roam: never paste secret values into chat or files roam writes
+=== [git] random round 1 ===
+  user op: beta edit profiles/p/skills/pskill/SKILL.md (7a166ecf -> ff600434)
+  user op: beta edit skills/skill-a/SKILL.md (009a7aff -> 3a14a7b8)
+  user op: alpha edit skins/theme-a/skin.css (87ffda9e -> efefa1af)
+  interleave: beta pull_apply(overwrite=False) rc=0: roam: plan only — nothing was written (remote generation 0)
+roam: review the plan, then run `hermes roam pull --apply`
+roam: --apply rewrites home files after making a backup
+  interleave: alpha pull_apply(overwrite=False) rc=0: roam: plan only — nothing was written (remote generation 0)
+roam: review the plan, then run `hermes roam pull --apply`
+roam: --apply rewrites home files after making a backup
+  interleave: alpha push rc=0: roam: pushed generation 1 (10 files, 2995 bytes)
+roam: bundle bundles/000001-alpha-95a15f21c9e4.roam
+  interleave: beta push refused (as designed): roam: the remote head is at generation 1 but this device last saw 0; pull first (or push with --force)
+roam: the remote head moved ahead — run `hermes roam pull` first
+  interleave: beta push retry rc=0: roam: pushed generation 2 (10 files, 2995 bytes)
+roam: bundle bundles/000002-beta-002409383e8b.roam
+  P2 comparison excludes 1 TRACKED path(s) that are not shared under every device's rules (per-device local by design): skills/skill-b/SKILL.md
+P2 ok (git round 1): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (git round 1): {"skills/skill-b/SKILL.md@42a5ca7343d3": ["NOWHERE"], "memories/MEMORY.md@ebbdf667d450": ["NOWHERE"], "profiles/p/SOUL.md@f03aeb6c4297": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"]}
+=== [git] random round 2 ===
+  user op: beta edit skills/skill-a/SKILL.md (3a14a7b8 -> 0e1f1aa3)
+  interleave: beta pull_apply(overwrite=True) rc=0: kept local by your scope rules: skills/skill-b/SKILL.md
+roam: 4 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json, skills/skill-b/SKILL…
+roam: 7 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 1 file(s) written, 0 deleted
+  interleave: alpha pull_apply(overwrite=False) rc=0: kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 9 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  interleave: beta push rc=0: roam: nothing to push (nothing to push)
+  interleave: alpha push rc=0: roam: nothing to push (nothing to push)
+P2 ok (git round 2): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (git round 2): {"skills/skill-b/SKILL.md@42a5ca7343d3": ["NOWHERE"], "memories/MEMORY.md@ebbdf667d450": ["NOWHERE"], "profiles/p/SOUL.md@f03aeb6c4297": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"]}
+=== [git] random round 3 ===
+  user op: beta edit skills/deep/nested/x/SKILL.md (f25bddbd -> a014ac87)
+  user op: alpha edit skins/theme-a/skin.css (87ffda9e -> 8469fe1c)
+  interleave: alpha push rc=0: roam: pushed generation 3 (10 files, 3089 bytes)
+roam: bundle bundles/000003-alpha-c93f7a9131a1.roam
+  interleave: beta pull_apply(overwrite=False) rc=0: roam: 4 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json, skills/skill-b/SKILL…
+roam: 1 path(s) changed locally since the last sync and remotely at the same time (conflicts) were kept local: skills/deep/nested/x/SKILL.md; resolve by pushing (thi…
+roam: 6 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 1 file(s) written, 0 deleted
+  interleave: beta push rc=0: roam: pushed generation 4 (10 files, 3046 bytes)
+roam: bundle bundles/000004-beta-c0712e65f06b.roam
+  interleave: alpha pull_apply(overwrite=False) rc=0: kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 8 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 1 file(s) written, 0 deleted
+P2 ok (git round 3): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (git round 3): {"skills/skill-b/SKILL.md@42a5ca7343d3": ["NOWHERE"], "memories/MEMORY.md@ebbdf667d450": ["NOWHERE"], "SOUL.md@e8415e2b26b4": ["NOWHERE"], "profiles/p/SOUL.md@f03aeb6c4297": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"]}
+=== [git] random round 4 ===
+  user op: alpha create profiles/p/memories/PMEM.md (none -> 5dffc763)
+  user op: beta create profiles/p/SOUL.md (none -> a60ca430)
+  user op: beta create profiles/p/memories/PMEM.md (none -> d5b5c128)
+  interleave: beta push rc=0: roam: pushed generation 5 (12 files, 3532 bytes)
+roam: bundle bundles/000005-beta-d4401d39817c.roam
+  interleave: alpha pull_apply(overwrite=False) rc=0: roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 1 path(s) changed locally since the last sync and remotely at the same time (conflicts) were kept local: profiles/p/memories/PMEM.md; resolve by pushing (this …
+roam: 9 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 1 file(s) written, 0 deleted
+  interleave: alpha push rc=0: roam: pushed generation 6 (12 files, 3596 bytes)
+roam: bundle bundles/000006-alpha-09ef93d1cd30.roam
+  interleave: beta pull_apply(overwrite=False) rc=0: kept local by your scope rules: skills/skill-b/SKILL.md
+roam: 4 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json, skills/skill-b/SKILL…
+roam: 9 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 1 file(s) written, 0 deleted
+P2 ok (git round 4): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (git round 4): {"skills/skill-b/SKILL.md@42a5ca7343d3": ["NOWHERE"], "memories/MEMORY.md@ebbdf667d450": ["NOWHERE"], "memories/MEMORY.md@8195db204c50": ["NOWHERE"], "skills/skill-b/SKILL.md@b42fca03775a": ["NOWHERE"], "SOUL.md@e8415e2b26b4": ["NOWHERE"], "profiles/p/SOUL.md@f03aeb6c4297": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"]}
+=== [git] random round 5 ===
+  user op: beta delete profiles/p/skills/pskill/SKILL.md (ff600434 -> gone)
+  user op: beta edit skins/theme-a/skin.css (8469fe1c -> 527c331d)
+  user op: alpha edit skins/theme-a/skin.css (8469fe1c -> bc2c30f2)
+  interleave: alpha pull_apply(overwrite=False) rc=0: roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 1 path(s) changed locally since the last sync and remotely at the same time (conflicts) were kept local: skins/theme-a/skin.css; resolve by pushing (this devic…
+roam: 10 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  interleave: beta pull_apply(overwrite=False) rc=0: roam: 4 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json, skills/skill-b/SKILL…
+roam: 1 path(s) changed locally since the last sync and remotely at the same time (conflicts) were kept local: skins/theme-a/skin.css; resolve by pushing (this devic…
+roam: 8 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  interleave: alpha push rc=0: roam: pushed generation 7 (12 files, 3623 bytes)
+roam: bundle bundles/000007-alpha-a8954b078edd.roam
+  interleave: beta push refused (as designed): roam: the remote head is at generation 7 but this device last saw 6; pull first (or push with --force)
+roam: the remote head moved ahead — run `hermes roam pull` first
+  interleave: beta push retry rc=0: roam: pushed generation 8 (11 files, 3259 bytes)
+roam: bundle bundles/000008-beta-c07341532149.roam
+P2 ok (git round 5): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (git round 5): {"skills/skill-b/SKILL.md@42a5ca7343d3": ["NOWHERE"], "memories/MEMORY.md@ebbdf667d450": ["NOWHERE"], "profiles/p/SOUL.md@aea705b7cbd3": ["NOWHERE"], "memories/MEMORY.md@8195db204c50": ["NOWHERE"], "skins/theme-a/skin.css@8469fe1cc9f3": ["NOWHERE"], "skills/skill-b/SKILL.md@b42fca03775a": ["NOWHERE"], "SOUL.md@e8415e2b26b4": ["NOWHERE"], "profiles/p/SOUL.md@f03aeb6c4297": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"]}
+=== [git] random round 6 ===
+  user op: beta delete memories/MEMORY.md (941b5491 -> gone)
+  user op: beta create profiles/p/skills/pskill/SKILL.md (none -> 95554267)
+  interleave: alpha pull_apply(overwrite=True) rc=0: kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 10 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  interleave: beta push rc=0: roam: pushed generation 9 (11 files, 3257 bytes)
+roam: bundle bundles/000009-beta-df8e14e8a5dd.roam
+  interleave: alpha push refused (as designed): roam: the remote head is at generation 9 but this device last saw 8; pull first (or push with --force)
+roam: the remote head moved ahead — run `hermes roam pull` first
+  interleave: alpha push retry rc=0: roam: nothing to push (nothing to push)
+  interleave: beta pull_apply(overwrite=False) rc=0: kept local by your scope rules: skills/skill-b/SKILL.md
+roam: 4 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json, skills/skill-b/SKILL…
+roam: 9 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+P2 ok (git round 6): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (git round 6): {"skills/skill-b/SKILL.md@42a5ca7343d3": ["NOWHERE"], "memories/MEMORY.md@ebbdf667d450": ["NOWHERE"], "profiles/p/SOUL.md@aea705b7cbd3": ["NOWHERE"], "memories/MEMORY.md@8195db204c50": ["NOWHERE"], "skins/theme-a/skin.css@8469fe1cc9f3": ["NOWHERE"], "skills/skill-b/SKILL.md@b42fca03775a": ["NOWHERE"], "SOUL.md@e8415e2b26b4": ["NOWHERE"], "profiles/p/SOUL.md@f03aeb6c4297": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@64a0f00abcdb": ["NOWHERE"]}
+=== [git] random round 7 ===
+  user op: beta edit skills/skill-a/SKILL.md (3a14a7b8 -> 63bc7abd)
+  user op: alpha edit skills/deep/nested/x/SKILL.md (a014ac87 -> 5bca7a17)
+  user op: alpha edit skills/deep/nested/x/SKILL.md (5bca7a17 -> 9639d985)
+  interleave: beta push rc=0: roam: pushed generation 10 (11 files, 3280 bytes)
+roam: bundle bundles/000010-beta-29ff0cac406a.roam
+  interleave: beta pull_apply(overwrite=False) rc=0: kept local by your scope rules: skills/skill-b/SKILL.md
+roam: 4 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json, skills/skill-b/SKILL…
+roam: 9 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  interleave: alpha push refused (as designed): roam: the remote head is at generation 10 but this device last saw 9; pull first (or push with --force)
+roam: the remote head moved ahead — run `hermes roam pull` first
+  interleave: alpha push retry rc=0: roam: pushed generation 11 (11 files, 3376 bytes)
+roam: bundle bundles/000011-alpha-e7e630d46edf.roam
+  interleave: alpha pull_apply(overwrite=False) rc=0: kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 10 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+P2 ok (git round 7): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (git round 7): {"skills/skill-b/SKILL.md@42a5ca7343d3": ["NOWHERE"], "memories/MEMORY.md@ebbdf667d450": ["NOWHERE"], "profiles/p/SOUL.md@aea705b7cbd3": ["NOWHERE"], "memories/MEMORY.md@8195db204c50": ["NOWHERE"], "skills/skill-a/SKILL.md@009a7aff3b37": ["NOWHERE"], "skins/theme-a/skin.css@8469fe1cc9f3": ["NOWHERE"], "skills/skill-b/SKILL.md@b42fca03775a": ["NOWHERE"], "SOUL.md@e8415e2b26b4": ["NOWHERE"], "profiles/p/skills/pskill/SKILL.md@7a166ecf06ef": ["NOWHERE"], "profiles/p/SOUL.md@9793d703e6ba": ["NOWHERE"], "profiles/p/SOUL.md@f03aeb6c4297": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@64a0f00abcdb": ["NOWHERE"]}
+=== [git] random round 8 ===
+  user op: alpha create profiles/p/skins/pskin.css (none -> 2f358fc1)
+  interleave: alpha push rc=0: roam: pushed generation 12 (12 files, 3626 bytes)
+roam: bundle bundles/000012-alpha-550e6dcb9371.roam
+  interleave: beta pull_apply(overwrite=True) rc=0: kept local by your scope rules: skills/skill-b/SKILL.md
+roam: 4 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json, skills/skill-b/SKILL…
+roam: 9 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 1 file(s) written, 0 deleted
+  interleave: alpha pull_apply(overwrite=True) rc=0: kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 11 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  interleave: beta push rc=0: roam: nothing to push (nothing to push)
+P2 ok (git round 8): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (git round 8): {"skills/skill-b/SKILL.md@42a5ca7343d3": ["NOWHERE"], "memories/MEMORY.md@ebbdf667d450": ["NOWHERE"], "profiles/p/SOUL.md@aea705b7cbd3": ["NOWHERE"], "memories/MEMORY.md@8195db204c50": ["NOWHERE"], "skills/skill-a/SKILL.md@009a7aff3b37": ["NOWHERE"], "skins/theme-a/skin.css@8469fe1cc9f3": ["NOWHERE"], "skills/skill-b/SKILL.md@b42fca03775a": ["NOWHERE"], "SOUL.md@e8415e2b26b4": ["NOWHERE"], "profiles/p/skills/pskill/SKILL.md@7a166ecf06ef": ["NOWHERE"], "profiles/p/SOUL.md@9793d703e6ba": ["NOWHERE"], "profiles/p/SOUL.md@f03aeb6c4297": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@64a0f00abcdb": ["NOWHERE"]}
+=== [git] random round 9 ===
+  user op: alpha edit profiles/p/skills/pskill/SKILL.md (95554267 -> ee805fc0)
+  user op: alpha delete skills/skill-a/SKILL.md (63bc7abd -> gone)
+  interleave: alpha push rc=0: roam: pushed generation 13 (11 files, 3363 bytes)
+roam: bundle bundles/000013-alpha-d3141d7683c4.roam
+  interleave: beta pull_apply(overwrite=False) rc=0: kept local by your scope rules: skills/skill-b/SKILL.md
+roam: 4 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json, skills/skill-b/SKILL…
+roam: 8 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 1 file(s) written, 1 deleted
+  interleave: alpha pull_apply(overwrite=False) rc=0: kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 10 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  interleave: beta push rc=0: roam: nothing to push (nothing to push)
+P2 ok (git round 9): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (git round 9): {"skills/skill-b/SKILL.md@42a5ca7343d3": ["NOWHERE"], "memories/MEMORY.md@ebbdf667d450": ["NOWHERE"], "profiles/p/SOUL.md@aea705b7cbd3": ["NOWHERE"], "memories/MEMORY.md@8195db204c50": ["NOWHERE"], "skills/skill-a/SKILL.md@009a7aff3b37": ["NOWHERE"], "skins/theme-a/skin.css@8469fe1cc9f3": ["NOWHERE"], "skills/skill-b/SKILL.md@b42fca03775a": ["NOWHERE"], "SOUL.md@e8415e2b26b4": ["NOWHERE"], "profiles/p/skills/pskill/SKILL.md@7a166ecf06ef": ["NOWHERE"], "profiles/p/SOUL.md@9793d703e6ba": ["NOWHERE"], "profiles/p/SOUL.md@f03aeb6c4297": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@64a0f00abcdb": ["NOWHERE"]}
+=== [git] random round 10 ===
+  user op: alpha edit profiles/p/memories/PMEM.md (5dffc763 -> 7e9e9401)
+  user op: beta edit skills/skill-b/SKILL.md (0c2d7a63 -> da061df9)
+  user op: alpha edit profiles/p/SOUL.md (a60ca430 -> 16bb7ebd)
+  interleave: beta pull_apply(overwrite=False) rc=0: kept local by your scope rules: skills/skill-b/SKILL.md
+roam: 4 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json, skills/skill-b/SKILL…
+roam: 9 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  interleave: alpha push rc=0: roam: pushed generation 14 (11 files, 3421 bytes)
+roam: bundle bundles/000014-alpha-34da72e988d4.roam
+  interleave: alpha pull_apply(overwrite=False) rc=0: kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 10 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  interleave: beta push refused (as designed): roam: the remote head is at generation 14 but this device last saw 13; pull first (or push with --force)
+roam: the remote head moved ahead — run `hermes roam pull` first
+  interleave: beta push retry rc=0: roam: nothing to push (nothing to push)
+P2 ok (git round 10): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (git round 10): {"skills/skill-b/SKILL.md@42a5ca7343d3": ["NOWHERE"], "profiles/p/SOUL.md@aea705b7cbd3": ["NOWHERE"], "skins/theme-a/skin.css@87ffda9efcad": ["NOWHERE"], "memories/MEMORY.md@8195db204c50": ["NOWHERE"], "skins/theme-a/skin.css@8469fe1cc9f3": ["NOWHERE"], "skills/skill-b/SKILL.md@b42fca03775a": ["NOWHERE"], "profiles/p/skills/pskill/SKILL.md@7a166ecf06ef": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@64a0f00abcdb": ["NOWHERE"], "memories/MEMORY.md@ebbdf667d450": ["NOWHERE"], "skills/skill-a/SKILL.md@009a7aff3b37": ["NOWHERE"], "SOUL.md@e8415e2b26b4": ["NOWHERE"], "profiles/p/SOUL.md@9793d703e6ba": ["NOWHERE"], "profiles/p/SOUL.md@f03aeb6c4297": ["NOWHERE"]}
+=== [git] scenario: sessions opt-in on ONE device only ===
+  alpha config set sync_sessions: rc=0 ✓ Set plugins.entries.hermes-roam.settings.sync_sessions = True in <work>/roam-homes/r4-final/review2-s3-a/config.yaml
+  user op: alpha create sessions/s-alpha.json
+  user op: beta create sessions/s-beta.json
+  alpha push rc=0: roam: pushed generation 15 (12 files, 3676 bytes)
+roam: bundle bundles/000015-alpha-8816d417505c.roam
+  beta pull --apply rc=0: kept local by your scope rules: skills/skill-b/SKILL.md
+roam: 5 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json, sessions/s-alpha.jso…
+roam: 9 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  beta received alpha's session: False (expect False); beta kept its own session: True (expect True)
+  beta push rc=0: roam: nothing to push (nothing to push)
+  alpha pull --apply rc=0: kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 11 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  alpha kept its own session after pull: True (expect True)
+  alpha sync_sessions back to false: rc=0
+=== [git] scenario: profile secrets stay local ===
+  alpha push rc=0: roam: nothing to push (nothing to push)
+  beta pull --apply rc=0: roam: profiles/p/config.yaml: changed locally since the last sync; kept local (push from this device to publish it)
+roam: 6 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json, sessions/s-alpha.jso…
+roam: 8 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  shared profile note arrived: False; alpha api_key absent: True; alpha profile .env value absent: True
+=== [git] scenario: rules.yaml (local narrowing, shared extension) ===
+  beta push (rules.yaml stays local; the narrowed path is carried forward) rc=0: roam: pushed generation 16 (12 files, 3519 bytes)
+roam: bundle bundles/000016-beta-c2c33fe7a7d8.roam
+  alpha pull --apply rc=0: roam: would merge profiles/p/config.yaml (host-scoped keys stay local)
+roam: 9 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: config.yaml merged; host-scoped keys kept from the local config
+roam: 0 file(s) written, 0 deleted
+  alpha received beta's rules.yaml: False (expect False)
+  alpha push rc=0: roam: nothing to push (nothing to push)
+  beta pull --apply rc=0: kept local by your scope rules: skills/skill-b/SKILL.md
+roam: 6 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json, sessions/s-alpha.jso…
+roam: 9 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  alpha skills/skill-b kept: True (expect True: the last synced fleet version); beta skills/skill-b kept local: True (expect True: narrowed by beta's own rules)
+P1 VIOLATION (git round 99): {"skills/skill-b/SKILL.md@42a5ca7343d3": ["NOWHERE"], "profiles/p/SOUL.md@aea705b7cbd3": ["NOWHERE"], "skins/theme-a/skin.css@87ffda9efcad": ["NOWHERE"], "memories/MEMORY.md@8195db204c50": ["NOWHERE"], "skins/theme-a/skin.css@8469fe1cc9f3": ["NOWHERE"], "skills/skill-b/SKILL.md@b42fca03775a": ["NOWHERE"], "profiles/p/skills/pskill/SKILL.md@7a166ecf06ef": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@f25bddbdfecc": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@64a0f00abcdb": ["NOWHERE"], "memories/MEMORY.md@ebbdf667d450": ["NOWHERE"], "skills/skill-a/SKILL.md@009a7aff3b37": ["NOWHERE"], "SOUL.md@e8415e2b26b4": ["NOWHERE"], "profiles/p/SOUL.md@9793d703e6ba": ["NOWHERE"], "profiles/p/SOUL.md@f03aeb6c4297": ["NOWHERE"]}
+=== [git] scenario: pull --apply on an already-converged fleet ===
+  beta diff: roam: pull preview against remote generation 16
+pull preview: would add sessions sessions/s-alpha.json
+pull preview: would add local skills/skill-b/SKILL.md
+  beta pull --apply rc=0: kept local by your scope rules: skills/skill-b/SKILL.md
+roam: 6 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json, sessions/s-alpha.jso…
+roam: 9 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  beta backup dirs after the no-op pull: 5
+P2 ok (git round 99): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+
+## verdict (seed 20261106)
+P1 violations: 17
+- [local r7] lost: {"memories/MEMORY.md@140cef2e6557": ["NOWHERE"], "SOUL.md@36c1f5a2e92c": ["NOWHERE"]}
+- [local r8] lost: {"memories/MEMORY.md@140cef2e6557": ["NOWHERE"], "SOUL.md@36c1f5a2e92c": ["NOWHERE"]}
+- [local r9] lost: {"memories/MEMORY.md@140cef2e6557": ["NOWHERE"], "SOUL.md@36c1f5a2e92c": ["NOWHERE"]}
+- [local r10] lost: {"SOUL.md@c30d907b20a6": ["NOWHERE"], "memories/MEMORY.md@140cef2e6557": ["NOWHERE"], "SOUL.md@36c1f5a2e92c": ["NOWHERE"], "profiles/p/SOUL.md@f03aeb6c4297": ["NOWHERE"]}
+- [local r99] lost: {"SOUL.md@c30d907b20a6": ["NOWHERE"], "memories/MEMORY.md@140cef2e6557": ["NOWHERE"], "SOUL.md@36c1f5a2e92c": ["NOWHERE"], "profiles/p/SOUL.md@f03aeb6c4297": ["NOWHERE"]}
+- [git r1] lost: {"skills/skill-b/SKILL.md@42a5ca7343d3": ["NOWHERE"], "memories/MEMORY.md@ebbdf667d450": ["NOWHERE"], "profiles/p/SOUL.md@f03aeb6c4297": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"]}
+- [git r2] lost: {"skills/skill-b/SKILL.md@42a5ca7343d3": ["NOWHERE"], "memories/MEMORY.md@ebbdf667d450": ["NOWHERE"], "profiles/p/SOUL.md@f03aeb6c4297": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"]}
+- [git r3] lost: {"skills/skill-b/SKILL.md@42a5ca7343d3": ["NOWHERE"], "memories/MEMORY.md@ebbdf667d450": ["NOWHERE"], "SOUL.md@e8415e2b26b4": ["NOWHERE"], "profiles/p/SOUL.md@f03aeb6c4297": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"]}
+- [git r4] lost: {"skills/skill-b/SKILL.md@42a5ca7343d3": ["NOWHERE"], "memories/MEMORY.md@ebbdf667d450": ["NOWHERE"], "memories/MEMORY.md@8195db204c50": ["NOWHERE"], "skills/skill-b/SKILL.md@b42fca03775a": ["NOWHERE"], "SOUL.md@e8415e2b26b4": ["NOWHERE"], "profiles/p/SOUL.md@f03aeb6c4297": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"]}
+- [git r5] lost: {"skills/skill-b/SKILL.md@42a5ca7343d3": ["NOWHERE"], "memories/MEMORY.md@ebbdf667d450": ["NOWHERE"], "profiles/p/SOUL.md@aea705b7cbd3": ["NOWHERE"], "memories/MEMORY.md@8195db204c50": ["NOWHERE"], "skins/theme-a/skin.css@8469fe1cc9f3": ["NOWHERE"], "skills/skill-b/SKILL.md@b42fca03775a": ["NOWHERE"], "SOUL.md@e8415e2b26b4": ["NOWHERE"], "profiles/p/SOUL.md@f03aeb6c4297": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"]}
+- [git r6] lost: {"skills/skill-b/SKILL.md@42a5ca7343d3": ["NOWHERE"], "memories/MEMORY.md@ebbdf667d450": ["NOWHERE"], "profiles/p/SOUL.md@aea705b7cbd3": ["NOWHERE"], "memories/MEMORY.md@8195db204c50": ["NOWHERE"], "skins/theme-a/skin.css@8469fe1cc9f3": ["NOWHERE"], "skills/skill-b/SKILL.md@b42fca03775a": ["NOWHERE"], "SOUL.md@e8415e2b26b4": ["NOWHERE"], "profiles/p/SOUL.md@f03aeb6c4297": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@64a0f00abcdb": ["NOWHERE"]}
+- [git r7] lost: {"skills/skill-b/SKILL.md@42a5ca7343d3": ["NOWHERE"], "memories/MEMORY.md@ebbdf667d450": ["NOWHERE"], "profiles/p/SOUL.md@aea705b7cbd3": ["NOWHERE"], "memories/MEMORY.md@8195db204c50": ["NOWHERE"], "skills/skill-a/SKILL.md@009a7aff3b37": ["NOWHERE"], "skins/theme-a/skin.css@8469fe1cc9f3": ["NOWHERE"], "skills/skill-b/SKILL.md@b42fca03775a": ["NOWHERE"], "SOUL.md@e8415e2b26b4": ["NOWHERE"], "profiles/p/skills/pskill/SKILL.md@7a166ecf06ef": ["NOWHERE"], "profiles/p/SOUL.md@9793d703e6ba": ["NOWHERE"], "profiles/p/SOUL.md@f03aeb6c4297": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@64a0f00abcdb": ["NOWHERE"]}
+- [git r8] lost: {"skills/skill-b/SKILL.md@42a5ca7343d3": ["NOWHERE"], "memories/MEMORY.md@ebbdf667d450": ["NOWHERE"], "profiles/p/SOUL.md@aea705b7cbd3": ["NOWHERE"], "memories/MEMORY.md@8195db204c50": ["NOWHERE"], "skills/skill-a/SKILL.md@009a7aff3b37": ["NOWHERE"], "skins/theme-a/skin.css@8469fe1cc9f3": ["NOWHERE"], "skills/skill-b/SKILL.md@b42fca03775a": ["NOWHERE"], "SOUL.md@e8415e2b26b4": ["NOWHERE"], "profiles/p/skills/pskill/SKILL.md@7a166ecf06ef": ["NOWHERE"], "profiles/p/SOUL.md@9793d703e6ba": ["NOWHERE"], "profiles/p/SOUL.md@f03aeb6c4297": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@64a0f00abcdb": ["NOWHERE"]}
+- [git r9] lost: {"skills/skill-b/SKILL.md@42a5ca7343d3": ["NOWHERE"], "memories/MEMORY.md@ebbdf667d450": ["NOWHERE"], "profiles/p/SOUL.md@aea705b7cbd3": ["NOWHERE"], "memories/MEMORY.md@8195db204c50": ["NOWHERE"], "skills/skill-a/SKILL.md@009a7aff3b37": ["NOWHERE"], "skins/theme-a/skin.css@8469fe1cc9f3": ["NOWHERE"], "skills/skill-b/SKILL.md@b42fca03775a": ["NOWHERE"], "SOUL.md@e8415e2b26b4": ["NOWHERE"], "profiles/p/skills/pskill/SKILL.md@7a166ecf06ef": ["NOWHERE"], "profiles/p/SOUL.md@9793d703e6ba": ["NOWHERE"], "profiles/p/SOUL.md@f03aeb6c4297": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@64a0f00abcdb": ["NOWHERE"]}
+- [git r10] lost: {"skills/skill-b/SKILL.md@42a5ca7343d3": ["NOWHERE"], "profiles/p/SOUL.md@aea705b7cbd3": ["NOWHERE"], "skins/theme-a/skin.css@87ffda9efcad": ["NOWHERE"], "memories/MEMORY.md@8195db204c50": ["NOWHERE"], "skins/theme-a/skin.css@8469fe1cc9f3": ["NOWHERE"], "skills/skill-b/SKILL.md@b42fca03775a": ["NOWHERE"], "profiles/p/skills/pskill/SKILL.md@7a166ecf06ef": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@64a0f00abcdb": ["NOWHERE"], "memories/MEMORY.md@ebbdf667d450": ["NOWHERE"], "skills/skill-a/SKILL.md@009a7aff3b37": ["NOWHERE"], "SOUL.md@e8415e2b26b4": ["NOWHERE"], "profiles/p/SOUL.md@9793d703e6ba": ["NOWHERE"], "profiles/p/SOUL.md@f03aeb6c4297": ["NOWHERE"]}
+- [git profile] shared=False nokey=True env=True
+- [git r99] lost: {"skills/skill-b/SKILL.md@42a5ca7343d3": ["NOWHERE"], "profiles/p/SOUL.md@aea705b7cbd3": ["NOWHERE"], "skins/theme-a/skin.css@87ffda9efcad": ["NOWHERE"], "memories/MEMORY.md@8195db204c50": ["NOWHERE"], "skins/theme-a/skin.css@8469fe1cc9f3": ["NOWHERE"], "skills/skill-b/SKILL.md@b42fca03775a": ["NOWHERE"], "profiles/p/skills/pskill/SKILL.md@7a166ecf06ef": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@f25bddbdfecc": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@64a0f00abcdb": ["NOWHERE"], "memories/MEMORY.md@ebbdf667d450": ["NOWHERE"], "skills/skill-a/SKILL.md@009a7aff3b37": ["NOWHERE"], "SOUL.md@e8415e2b26b4": ["NOWHERE"], "profiles/p/SOUL.md@9793d703e6ba": ["NOWHERE"], "profiles/p/SOUL.md@f03aeb6c4297": ["NOWHERE"]}
+P2 convergence failures: 0
+finished 2026-11-06 18:59:25 (started 2026-11-06 17:27:45)
+
+log written to <work>/roam-homes/r4-final/review2_s3_log.md
+P1 violations: 17; P2 convergence failures: 0

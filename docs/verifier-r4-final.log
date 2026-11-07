@@ -1,0 +1,26 @@
+# Round-4 final verifier transcript — exit 0 — against the r4-final stores
+# ROAM_CAMPAIGN_BASE=<work>/roam-homes/r4-final; 25 versions ever pushed, 17 missing
+# from homes and the backup_keep windows, 16 restored+hash-checked via Engine.history/restore,
+# 1 path user-destroyed by the harness itself (peer refused every version; out of scope).
+
+versions ever pushed (bundle manifests): 25
+paths proven user-destroyed (peer refusal + harness rewrite in transcript): 1
+versions missing from both homes and both backup windows: 17
+versions recovered through Engine.history/restore into the scratch home (hash-checked): 16
+  + SOUL.md@36c1f5a2e92c — restored from the local store, generation 1
+  + SOUL.md@c30d907b20a6 — restored from the local store, generation 2
+  + SOUL.md@e8415e2b26b4 — restored from the local store, generation 6
+  + memories/MEMORY.md@140cef2e6557 — restored from the local store, generation 1
+  + memories/MEMORY.md@8195db204c50 — restored from the local store, generation 2
+  + memories/MEMORY.md@ebbdf667d450 — restored from the local store, generation 5
+  + profiles/p/SOUL.md@9793d703e6ba — restored from the local store, generation 6
+  + profiles/p/SOUL.md@aea705b7cbd3 — restored from the local store, generation 8
+  + profiles/p/SOUL.md@f03aeb6c4297 — restored from the local store, generation 2
+  + profiles/p/skills/pskill/SKILL.md@7a166ecf06ef — restored from the local store, generation 5
+  + skills/deep/nested/x/SKILL.md@64a0f00abcdb — restored from the local store, generation 10
+  + skills/deep/nested/x/SKILL.md@f25bddbdfecc — restored from the local store, generation 12
+  + skills/skill-a/SKILL.md@009a7aff3b37 — restored from the local store, generation 3
+  + skills/skill-b/SKILL.md@42a5ca7343d3 — restored from the local store, generation 6
+  + skills/skill-b/SKILL.md@b42fca03775a — restored from the local store, generation 9
+  + skins/theme-a/skin.css@87ffda9efcad — restored from the local store, generation 9
+P1 HOLDS: every version ever pushed that the sync system touched is still present in a home, in a roam/backups directory, or was restored from the remote store through the plugin's own recovery surface and hash-checked

@@ -1,0 +1,94 @@
+# Round-4 lane h2 campaign rerun — seed 20261106 — hermes-roam fix4-h2 @ c790867
+# Full log: <work>/roam-homes/h2-rerun/review2_s3_log.md (evidence area, kept)
+# Setup: <work>/roam-homes/h2-rerun-setup.sh (fresh homes, plugin from this worktree)
+
+# review2 s3 property harness — seed 20261106 — started 2026-11-06 15:45:31
+=== [local] random round 1 ===
+P2 ok (local round 1): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 ok (local round 1): 9 protected versions all present in homes or backups
+=== [local] random round 2 ===
+P2 ok (local round 2): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+=== [local] random round 3 ===
+P2 ok (local round 3): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+=== [local] random round 4 ===
+P2 ok (local round 4): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+=== [local] random round 5 ===
+P2 ok (local round 5): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+=== [local] random round 6 ===
+P2 ok (local round 6): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+=== [local] random round 7 ===
+P2 ok (local round 7): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (local round 7): {"SOUL.md@36c1f5a2e92c": ["NOWHERE"], "memories/MEMORY.md@82b2574991f4": ["NOWHERE"]}
+=== [local] random round 8 ===
+P2 ok (local round 8): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (local round 8): {"SOUL.md@36c1f5a2e92c": ["NOWHERE"], "memories/MEMORY.md@82b2574991f4": ["NOWHERE"]}
+=== [local] random round 9 ===
+P2 ok (local round 9): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (local round 9): {"SOUL.md@36c1f5a2e92c": ["NOWHERE"], "memories/MEMORY.md@82b2574991f4": ["NOWHERE"]}
+=== [local] random round 10 ===
+P2 ok (local round 10): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (local round 10): {"SOUL.md@36c1f5a2e92c": ["NOWHERE"], "profiles/p/SOUL.md@071d421df1f2": ["NOWHERE"], "memories/MEMORY.md@82b2574991f4": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"]}
+=== [local] scenario: sessions opt-in on ONE device only ===
+=== [local] scenario: profile secrets stay local ===
+=== [local] scenario: rules.yaml (local narrowing, shared extension) ===
+P1 VIOLATION (local round 99): {"SOUL.md@36c1f5a2e92c": ["NOWHERE"], "profiles/p/SOUL.md@071d421df1f2": ["NOWHERE"], "memories/MEMORY.md@82b2574991f4": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"]}
+=== [local] scenario: pull --apply on an already-converged fleet ===
+=== switching both homes to the git backend (local bare repo) ===
+=== [git] random round 1 ===
+  P2 comparison excludes 1 TRACKED path(s) that are not shared under every device's rules (per-device local by design): skills/skill-b/SKILL.md
+P2 ok (git round 1): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (git round 1): {"profiles/p/SOUL.md@071d421df1f2": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "memories/MEMORY.md@b2ea43f1cb79": ["NOWHERE"], "skills/skill-b/SKILL.md@e18e8e980dfe": ["NOWHERE"]}
+=== [git] random round 2 ===
+P2 ok (git round 2): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (git round 2): {"profiles/p/SOUL.md@071d421df1f2": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "memories/MEMORY.md@b2ea43f1cb79": ["NOWHERE"], "skills/skill-b/SKILL.md@e18e8e980dfe": ["NOWHERE"]}
+=== [git] random round 3 ===
+P2 ok (git round 3): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (git round 3): {"SOUL.md@2037cc6c9814": ["NOWHERE"], "profiles/p/SOUL.md@071d421df1f2": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "memories/MEMORY.md@b2ea43f1cb79": ["NOWHERE"], "skills/skill-b/SKILL.md@e18e8e980dfe": ["NOWHERE"]}
+=== [git] random round 4 ===
+P2 ok (git round 4): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (git round 4): {"memories/MEMORY.md@8195db204c50": ["NOWHERE"], "SOUL.md@2037cc6c9814": ["NOWHERE"], "profiles/p/SOUL.md@071d421df1f2": ["NOWHERE"], "skills/skill-b/SKILL.md@a95ef2e7e857": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "memories/MEMORY.md@b2ea43f1cb79": ["NOWHERE"], "skills/skill-b/SKILL.md@e18e8e980dfe": ["NOWHERE"]}
+=== [git] random round 5 ===
+P2 ok (git round 5): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (git round 5): {"memories/MEMORY.md@8195db204c50": ["NOWHERE"], "profiles/p/SOUL.md@62926ef97cec": ["NOWHERE"], "SOUL.md@2037cc6c9814": ["NOWHERE"], "profiles/p/SOUL.md@071d421df1f2": ["NOWHERE"], "skills/skill-b/SKILL.md@a95ef2e7e857": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "memories/MEMORY.md@b2ea43f1cb79": ["NOWHERE"], "skills/skill-b/SKILL.md@e18e8e980dfe": ["NOWHERE"], "skins/theme-a/skin.css@2fd607118e1f": ["NOWHERE"]}
+=== [git] random round 6 ===
+P2 ok (git round 6): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (git round 6): {"memories/MEMORY.md@8195db204c50": ["NOWHERE"], "profiles/p/SOUL.md@62926ef97cec": ["NOWHERE"], "SOUL.md@2037cc6c9814": ["NOWHERE"], "profiles/p/SOUL.md@071d421df1f2": ["NOWHERE"], "skills/skill-b/SKILL.md@a95ef2e7e857": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@88be824a261b": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "memories/MEMORY.md@b2ea43f1cb79": ["NOWHERE"], "skills/skill-b/SKILL.md@e18e8e980dfe": ["NOWHERE"], "skins/theme-a/skin.css@2fd607118e1f": ["NOWHERE"]}
+=== [git] random round 7 ===
+P2 ok (git round 7): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (git round 7): {"profiles/p/skills/pskill/SKILL.md@e6051b5dba1f": ["NOWHERE"], "memories/MEMORY.md@8195db204c50": ["NOWHERE"], "profiles/p/SOUL.md@bac086da1a29": ["NOWHERE"], "profiles/p/SOUL.md@62926ef97cec": ["NOWHERE"], "SOUL.md@2037cc6c9814": ["NOWHERE"], "profiles/p/SOUL.md@071d421df1f2": ["NOWHERE"], "skills/skill-b/SKILL.md@a95ef2e7e857": ["NOWHERE"], "skills/skill-a/SKILL.md@799cce21658c": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@88be824a261b": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "memories/MEMORY.md@b2ea43f1cb79": ["NOWHERE"], "skills/skill-b/SKILL.md@e18e8e980dfe": ["NOWHERE"], "skins/theme-a/skin.css@2fd607118e1f": ["NOWHERE"]}
+=== [git] random round 8 ===
+P2 ok (git round 8): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (git round 8): {"profiles/p/skills/pskill/SKILL.md@e6051b5dba1f": ["NOWHERE"], "memories/MEMORY.md@8195db204c50": ["NOWHERE"], "profiles/p/SOUL.md@bac086da1a29": ["NOWHERE"], "profiles/p/SOUL.md@62926ef97cec": ["NOWHERE"], "SOUL.md@2037cc6c9814": ["NOWHERE"], "profiles/p/SOUL.md@071d421df1f2": ["NOWHERE"], "skills/skill-b/SKILL.md@a95ef2e7e857": ["NOWHERE"], "skills/skill-a/SKILL.md@799cce21658c": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@88be824a261b": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "memories/MEMORY.md@b2ea43f1cb79": ["NOWHERE"], "skills/skill-b/SKILL.md@e18e8e980dfe": ["NOWHERE"], "skins/theme-a/skin.css@2fd607118e1f": ["NOWHERE"]}
+=== [git] random round 9 ===
+P2 ok (git round 9): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (git round 9): {"profiles/p/skills/pskill/SKILL.md@e6051b5dba1f": ["NOWHERE"], "memories/MEMORY.md@8195db204c50": ["NOWHERE"], "profiles/p/SOUL.md@bac086da1a29": ["NOWHERE"], "profiles/p/SOUL.md@62926ef97cec": ["NOWHERE"], "SOUL.md@2037cc6c9814": ["NOWHERE"], "profiles/p/SOUL.md@071d421df1f2": ["NOWHERE"], "skills/skill-b/SKILL.md@a95ef2e7e857": ["NOWHERE"], "skills/skill-a/SKILL.md@799cce21658c": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@88be824a261b": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "memories/MEMORY.md@b2ea43f1cb79": ["NOWHERE"], "skills/skill-b/SKILL.md@e18e8e980dfe": ["NOWHERE"], "skins/theme-a/skin.css@2fd607118e1f": ["NOWHERE"]}
+=== [git] random round 10 ===
+P2 ok (git round 10): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+P1 VIOLATION (git round 10): {"profiles/p/skills/pskill/SKILL.md@e6051b5dba1f": ["NOWHERE"], "profiles/p/SOUL.md@bac086da1a29": ["NOWHERE"], "profiles/p/SOUL.md@62926ef97cec": ["NOWHERE"], "profiles/p/SOUL.md@071d421df1f2": ["NOWHERE"], "skills/skill-b/SKILL.md@a95ef2e7e857": ["NOWHERE"], "skins/theme-a/skin.css@ce52c1fb5994": ["NOWHERE"], "skins/theme-a/skin.css@2fd607118e1f": ["NOWHERE"], "memories/MEMORY.md@8195db204c50": ["NOWHERE"], "SOUL.md@2037cc6c9814": ["NOWHERE"], "skills/skill-a/SKILL.md@799cce21658c": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@88be824a261b": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "memories/MEMORY.md@b2ea43f1cb79": ["NOWHERE"], "skills/skill-b/SKILL.md@e18e8e980dfe": ["NOWHERE"]}
+=== [git] scenario: sessions opt-in on ONE device only ===
+=== [git] scenario: profile secrets stay local ===
+=== [git] scenario: rules.yaml (local narrowing, shared extension) ===
+P1 VIOLATION (git round 99): {"profiles/p/skills/pskill/SKILL.md@e6051b5dba1f": ["NOWHERE"], "profiles/p/SOUL.md@bac086da1a29": ["NOWHERE"], "profiles/p/SOUL.md@62926ef97cec": ["NOWHERE"], "profiles/p/SOUL.md@071d421df1f2": ["NOWHERE"], "skills/skill-b/SKILL.md@a95ef2e7e857": ["NOWHERE"], "skins/theme-a/skin.css@ce52c1fb5994": ["NOWHERE"], "skins/theme-a/skin.css@2fd607118e1f": ["NOWHERE"], "memories/MEMORY.md@8195db204c50": ["NOWHERE"], "SOUL.md@2037cc6c9814": ["NOWHERE"], "skills/skill-a/SKILL.md@799cce21658c": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@88be824a261b": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "memories/MEMORY.md@b2ea43f1cb79": ["NOWHERE"], "skills/skill-b/SKILL.md@e18e8e980dfe": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@864650ebdaa0": ["NOWHERE"]}
+=== [git] scenario: pull --apply on an already-converged fleet ===
+P2 ok (git round 99): homes converged, both clean ({'alpha': (False, True), 'beta': (False, True)})
+## verdict (seed 20261106)
+P1 violations: 17
+- [local r7] lost: {"SOUL.md@36c1f5a2e92c": ["NOWHERE"], "memories/MEMORY.md@82b2574991f4": ["NOWHERE"]}
+- [local r8] lost: {"SOUL.md@36c1f5a2e92c": ["NOWHERE"], "memories/MEMORY.md@82b2574991f4": ["NOWHERE"]}
+- [local r9] lost: {"SOUL.md@36c1f5a2e92c": ["NOWHERE"], "memories/MEMORY.md@82b2574991f4": ["NOWHERE"]}
+- [local r10] lost: {"SOUL.md@36c1f5a2e92c": ["NOWHERE"], "profiles/p/SOUL.md@071d421df1f2": ["NOWHERE"], "memories/MEMORY.md@82b2574991f4": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"]}
+- [local r99] lost: {"SOUL.md@36c1f5a2e92c": ["NOWHERE"], "profiles/p/SOUL.md@071d421df1f2": ["NOWHERE"], "memories/MEMORY.md@82b2574991f4": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"]}
+- [git r1] lost: {"profiles/p/SOUL.md@071d421df1f2": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "memories/MEMORY.md@b2ea43f1cb79": ["NOWHERE"], "skills/skill-b/SKILL.md@e18e8e980dfe": ["NOWHERE"]}
+- [git r2] lost: {"profiles/p/SOUL.md@071d421df1f2": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "memories/MEMORY.md@b2ea43f1cb79": ["NOWHERE"], "skills/skill-b/SKILL.md@e18e8e980dfe": ["NOWHERE"]}
+- [git r3] lost: {"SOUL.md@2037cc6c9814": ["NOWHERE"], "profiles/p/SOUL.md@071d421df1f2": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "memories/MEMORY.md@b2ea43f1cb79": ["NOWHERE"], "skills/skill-b/SKILL.md@e18e8e980dfe": ["NOWHERE"]}
+- [git r4] lost: {"memories/MEMORY.md@8195db204c50": ["NOWHERE"], "SOUL.md@2037cc6c9814": ["NOWHERE"], "profiles/p/SOUL.md@071d421df1f2": ["NOWHERE"], "skills/skill-b/SKILL.md@a95ef2e7e857": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "memories/MEMORY.md@b2ea43f1cb79": ["NOWHERE"], "skills/skill-b/SKILL.md@e18e8e980dfe": ["NOWHERE"]}
+- [git r5] lost: {"memories/MEMORY.md@8195db204c50": ["NOWHERE"], "profiles/p/SOUL.md@62926ef97cec": ["NOWHERE"], "SOUL.md@2037cc6c9814": ["NOWHERE"], "profiles/p/SOUL.md@071d421df1f2": ["NOWHERE"], "skills/skill-b/SKILL.md@a95ef2e7e857": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "memories/MEMORY.md@b2ea43f1cb79": ["NOWHERE"], "skills/skill-b/SKILL.md@e18e8e980dfe": ["NOWHERE"], "skins/theme-a/skin.css@2fd607118e1f": ["NOWHERE"]}
+- [git r6] lost: {"memories/MEMORY.md@8195db204c50": ["NOWHERE"], "profiles/p/SOUL.md@62926ef97cec": ["NOWHERE"], "SOUL.md@2037cc6c9814": ["NOWHERE"], "profiles/p/SOUL.md@071d421df1f2": ["NOWHERE"], "skills/skill-b/SKILL.md@a95ef2e7e857": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@88be824a261b": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "memories/MEMORY.md@b2ea43f1cb79": ["NOWHERE"], "skills/skill-b/SKILL.md@e18e8e980dfe": ["NOWHERE"], "skins/theme-a/skin.css@2fd607118e1f": ["NOWHERE"]}
+- [git r7] lost: {"profiles/p/skills/pskill/SKILL.md@e6051b5dba1f": ["NOWHERE"], "memories/MEMORY.md@8195db204c50": ["NOWHERE"], "profiles/p/SOUL.md@bac086da1a29": ["NOWHERE"], "profiles/p/SOUL.md@62926ef97cec": ["NOWHERE"], "SOUL.md@2037cc6c9814": ["NOWHERE"], "profiles/p/SOUL.md@071d421df1f2": ["NOWHERE"], "skills/skill-b/SKILL.md@a95ef2e7e857": ["NOWHERE"], "skills/skill-a/SKILL.md@799cce21658c": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@88be824a261b": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "memories/MEMORY.md@b2ea43f1cb79": ["NOWHERE"], "skills/skill-b/SKILL.md@e18e8e980dfe": ["NOWHERE"], "skins/theme-a/skin.css@2fd607118e1f": ["NOWHERE"]}
+- [git r8] lost: {"profiles/p/skills/pskill/SKILL.md@e6051b5dba1f": ["NOWHERE"], "memories/MEMORY.md@8195db204c50": ["NOWHERE"], "profiles/p/SOUL.md@bac086da1a29": ["NOWHERE"], "profiles/p/SOUL.md@62926ef97cec": ["NOWHERE"], "SOUL.md@2037cc6c9814": ["NOWHERE"], "profiles/p/SOUL.md@071d421df1f2": ["NOWHERE"], "skills/skill-b/SKILL.md@a95ef2e7e857": ["NOWHERE"], "skills/skill-a/SKILL.md@799cce21658c": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@88be824a261b": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "memories/MEMORY.md@b2ea43f1cb79": ["NOWHERE"], "skills/skill-b/SKILL.md@e18e8e980dfe": ["NOWHERE"], "skins/theme-a/skin.css@2fd607118e1f": ["NOWHERE"]}
+- [git r9] lost: {"profiles/p/skills/pskill/SKILL.md@e6051b5dba1f": ["NOWHERE"], "memories/MEMORY.md@8195db204c50": ["NOWHERE"], "profiles/p/SOUL.md@bac086da1a29": ["NOWHERE"], "profiles/p/SOUL.md@62926ef97cec": ["NOWHERE"], "SOUL.md@2037cc6c9814": ["NOWHERE"], "profiles/p/SOUL.md@071d421df1f2": ["NOWHERE"], "skills/skill-b/SKILL.md@a95ef2e7e857": ["NOWHERE"], "skills/skill-a/SKILL.md@799cce21658c": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@88be824a261b": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "memories/MEMORY.md@b2ea43f1cb79": ["NOWHERE"], "skills/skill-b/SKILL.md@e18e8e980dfe": ["NOWHERE"], "skins/theme-a/skin.css@2fd607118e1f": ["NOWHERE"]}
+- [git r10] lost: {"profiles/p/skills/pskill/SKILL.md@e6051b5dba1f": ["NOWHERE"], "profiles/p/SOUL.md@bac086da1a29": ["NOWHERE"], "profiles/p/SOUL.md@62926ef97cec": ["NOWHERE"], "profiles/p/SOUL.md@071d421df1f2": ["NOWHERE"], "skills/skill-b/SKILL.md@a95ef2e7e857": ["NOWHERE"], "skins/theme-a/skin.css@ce52c1fb5994": ["NOWHERE"], "skins/theme-a/skin.css@2fd607118e1f": ["NOWHERE"], "memories/MEMORY.md@8195db204c50": ["NOWHERE"], "SOUL.md@2037cc6c9814": ["NOWHERE"], "skills/skill-a/SKILL.md@799cce21658c": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@88be824a261b": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "memories/MEMORY.md@b2ea43f1cb79": ["NOWHERE"], "skills/skill-b/SKILL.md@e18e8e980dfe": ["NOWHERE"]}
+- [git profile] shared=False nokey=True env=True
+- [git r99] lost: {"profiles/p/skills/pskill/SKILL.md@e6051b5dba1f": ["NOWHERE"], "profiles/p/SOUL.md@bac086da1a29": ["NOWHERE"], "profiles/p/SOUL.md@62926ef97cec": ["NOWHERE"], "profiles/p/SOUL.md@071d421df1f2": ["NOWHERE"], "skills/skill-b/SKILL.md@a95ef2e7e857": ["NOWHERE"], "skins/theme-a/skin.css@ce52c1fb5994": ["NOWHERE"], "skins/theme-a/skin.css@2fd607118e1f": ["NOWHERE"], "memories/MEMORY.md@8195db204c50": ["NOWHERE"], "SOUL.md@2037cc6c9814": ["NOWHERE"], "skills/skill-a/SKILL.md@799cce21658c": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@88be824a261b": ["NOWHERE"], "SOUL.md@c30d907b20a6": ["NOWHERE"], "memories/MEMORY.md@b2ea43f1cb79": ["NOWHERE"], "skills/skill-b/SKILL.md@e18e8e980dfe": ["NOWHERE"], "skills/deep/nested/x/SKILL.md@864650ebdaa0": ["NOWHERE"]}
+P2 convergence failures: 0
+finished 2026-11-06 17:16:39 (started 2026-11-06 15:45:31)

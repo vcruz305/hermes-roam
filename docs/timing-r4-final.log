@@ -1,0 +1,19 @@
+# Round-4 timing transcript — <work>/roam-homes/r4-timing.sh on the realistic dummy home
+# (review-r4-real, 2.4 GB) with the merged 0.4.0 plugin reinstalled from main @ deb6bf9.
+# Budget: every number < 30 s. Blackhole = 10.255.255.1 (non-routable; nothing answers).
+
+=== reinstall merged 0.3.0 plugin into review-r4-real ===
+│ hermes-roam         │ enabled     │ 0.4.0   │ Encrypted,           │ git     │
+roam: never paste secret values into chat or files roam writes
+=== local backend (review-r4-real) ===
+status (local)                             rc=0     1.8 s
+push --dry-run (local)                     rc=0     1.8 s
+doctor (local)                             rc=0     1.8 s
+=== blackholed ssh:// git remote ===
+status (ssh blackhole)                     rc=1    12.0 s
+push (ssh blackhole)                       rc=1    11.8 s
+=== blackholed https:// git remote ===
+status (https blackhole)                   rc=1    16.8 s
+push (https blackhole)                     rc=1    16.7 s
+=== restore local backend ===
+done

@@ -1,0 +1,22 @@
+# S3Backend contract run against real Cloudflare R2
+# bucket='hermes-roam' endpoint='https://<account-id>.r2.cloudflarestorage.com' region='auto' prefix='roam-r2-proof-20261106203229/contract'
+[ping] OK (0.49s): "s3 backend ready: bucket 'hermes-roam' reachable (prefix 'roam-r2-proof-20261106203229/contract')"
+[get_head on fresh prefix -> None] OK (0.10s): None
+[put_head(data, expected=None) -> token] OK (0.30s): '906a19e7794ab648783147fa8f176fe1'
+[get_head -> (bytes, token) round trip] OK (0.30s): (b'contract-head-v1', '906a19e7794ab648783147fa8f176fe1')
+    data matches: True; token: 906a...6fe1 (len 32)
+[put_head with stale/wrong expected -> HeadConflict (real 412)] HeadConflict (0.09s): the remote refused the conditional write for roam-r2-proof-20261106203229/contract/HEAD: it changed since it was read; pull first
+    raised from: roam.errors.HeadConflict: the remote refused the conditional write for roam-r2-proof-20261106203229/contract/HEAD: it changed since it was read; pull first
+[put_blob(bundles/000001-alpha-0123456789ab.roam)] OK (0.34s): None
+[put_blob same key again -> BlobExists (real 412)] BlobExists (0.10s): the remote refused the conditional write for bundles/000001-alpha-0123456789ab.roam: it changed since it was read; pull first
+    raised from: roam.errors.BlobExists: the remote refused the conditional write for bundles/000001-alpha-0123456789ab.roam: it changed since it was read; pull first
+[blob_exists same key -> True] OK (0.12s): True
+[get_blob with max_bytes=100 (under real size) -> BackendError] BackendError (0.08s): bundle bundles/000001-alpha-0123456789ab.roam is 5022 bytes, over the 100 byte limit
+    raised from: roam.errors.BackendError: bundle bundles/000001-alpha-0123456789ab.roam is 5022 bytes, over the 100 byte limit
+[get_blob with max_bytes=100000 -> downloads] OK (0.33s): b'contract-blob-pa'
+    downloaded content matches source: True
+[list_blobs('bundles/')] OK (0.10s): ['bundles/000001-alpha-0123456789ab.roam']
+[list_blobs('nonexistent/') -> []] OK (0.07s): []
+[get_head after everything -> same token] OK (0.38s): '906a...6fe1'
+# summary: ping=OK, get_head on fresh prefix -> None=OK, put_head(data, expected=None) -> token=OK, get_head -> (bytes, token) round trip=OK, put_head with stale/wrong expected -> HeadConflict (real 412)=HeadConflict, put_blob(bundles/000001-alpha-0123456789ab.roam)=OK, put_blob same key again -> BlobExists (real 412)=BlobExists, blob_exists same key -> True=OK, get_blob with max_bytes=100 (under real size) -> BackendError=BackendError, get_blob with max_bytes=100000 -> downloads=OK, list_blobs('bundles/')=OK, list_blobs('nonexistent/') -> []=OK, get_head after everything -> same token=OK
+# contract verdict: PASS
