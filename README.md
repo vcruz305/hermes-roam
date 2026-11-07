@@ -27,7 +27,10 @@ This answers the roaming-home thread at
   built-in defaults.
 - **Secrets never leave the machine.** `.env`, `auth.json`, and every other
   credential file are classified local by default and no bundle ever contains
-  them.
+  them. To have the same API keys on every machine, let each device fetch
+  them from a secret source instead: Hermes's built-in Bitwarden Secrets Manager source, or a
+  catalog secret-source plugin such as `vaultwarden`, `pass-secrets`,
+  `hermes-wincred` or `hermes-dpapi-secrets`.
 - **Nothing installs without a human decision.** A pull only previews until
   you pass `--apply`; the agent's `roam_pull` tool cannot apply at all
   unless you enable `allow_agent_apply` (default false); and an unreachable
