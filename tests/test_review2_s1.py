@@ -299,49 +299,69 @@ def test_t3_aws_secret_access_key_travels(tmp_path) -> None:
 # ------------------------------------------------------------------ t4
 
 
-def test_t4_carry_forward_guard_laundering(tmp_path) -> None:
-    """The opt-in carry-forward guard only inspects the LAST publisher. A
-    deletion first published by a non-opted-in device is laundered by a
-    single push from an opted-in device that never had the content, and
-    every opted-in device then wipes its files."""
-    backend = FakeBackend()
-    home_a = make_home(tmp_path, "home-a", {
-        "sessions/s1.jsonl": b'{"turn": 1}',
-        "skills/keep/SKILL.md": b"keep",
-    })
-    engine_a = mk_engine(home_a, "dev-a", backend, sync_sessions=True)
-    init_and_push(engine_a)  # generation 1 carries the sessions
+def test_t4_carry_forward_guard_laundering(tmp_path, monkeypatch) -> None:
+    """0.4.1 archive form of the opt-in carry-forward guard: no device can
+    ever launder a deletion of ANOTHER device's archive namespace. A
+    publishes; X (never opted in) pull+pushes; Y (opted in but never had
+    the content) pull+pushes; the signed head must still list A's archive
+    byte-identically and Z's pulled read-only copy must survive every one
+    of those pushes. Only A itself (turning sync_sessions off) can remove
+    its own namespace."""
+    from roam import session_archive as archive_mod
 
-    # Z opts in and holds the session transcript locally.
+    backend = FakeBackend()
+    home_a = make_home(tmp_path, "home-a", {"skills/keep/SKILL.md": b"keep"})
+    engine_a = mk_engine(home_a, "dev-a", backend, sync_sessions=True)
+    monkeypatch.setattr(archive_mod, "find_hermes", lambda: "hermes")
+    monkeypatch.setattr(
+        archive_mod,
+        "collect_export",
+        lambda home, scratch, exe, timeout: (
+            [
+                {
+                    "name": "s1.md",
+                    "data": b"# transcript\nsession_id: s1\n",
+                    "header": {"session_id": "s1", "updated_at": "2026-11-06"},
+                }
+            ],
+            "",
+        ),
+    )
+    init_and_push(engine_a)  # generation 1 carries the archive namespace
+
+    # Z opts in (reading needs no opt-in) and holds A's transcript read-only.
     home_z = make_home(tmp_path, "home-z")
     engine_z = mk_engine(home_z, "dev-z", backend, sync_sessions=True)
     engine_z.pull(apply=True)
+    assert (home_z / "roam/session-archive/dev-a/s1.md").is_file()
 
-    # X never opted in; its push drops the sessions (guarded at gen 2).
+    # X never opted in; its push must carry A's archive forward.
     home_x = make_home(tmp_path, "home-x")
     engine_x = mk_engine(home_x, "dev-x", backend)
-    engine_x.pull(apply=True)  # sessions skipped, never installed on X
+    engine_x.pull(apply=True)
     write(home_x / "skills/x.md", b"x's change")
-    engine_x.push()  # generation 2 without the sessions; X's syncs == []
+    engine_x.push()  # generation 2
 
-    # Y opts in but is fresh — it never had the sessions. It pulls
-    # generation 2 (nothing to refuse: it owns none) and pushes its own
-    # change; Y's roster entry says syncs == ["sessions"].
+    # Y opts in but is fresh — it never had the content. Its push must
+    # still carry A's archive forward.
     home_y = make_home(tmp_path, "home-y", {"skills/y.md": b"y's change"})
     engine_y = mk_engine(home_y, "dev-y", backend, sync_sessions=True)
     engine_y.pull(apply=True)  # generation 2
-    engine_y.push()  # generation 3; publisher Y is opted in
+    engine_y.push()  # generation 3
 
-    # Z pulls generation 3: the sessions are in Z's base and absent from
-    # the manifest; the guard sees an opted-in LAST publisher and lets
-    # the deletion through.
+    # Z pulls generation 3: A's archive is still listed byte-identically and
+    # Z's read-only copy survived every intermediate push.
+    pair = backend.get_head()
+    files = head_mod.verify_head(pair[0], KEY).files
+    assert "archive/sessions/dev-a/s1.md" in files, (
+        "a push by a device that cannot see A's archive dropped it from "
+        "the signed head: every device's next pull would lose A's "
+        "published archive"
+    )
     result = engine_z.pull(apply=True)
-    assert (home_z / "sessions/s1.jsonl").exists(), (
-        "the opt-in carry-forward guard was laundered: a deletion first "
-        "published by a non-opted-in device (X) went through after one "
-        "intermediate push by an opted-in device that never had the "
-        "content (Y), and Z's session transcript was deleted: "
-        f"{json.dumps(result.to_dict())}"
+    assert (home_z / "roam/session-archive/dev-a/s1.md").is_file(), (
+        "Z's pulled read-only session archive was wiped by an intermediate "
+        f"push: {json.dumps(result.to_dict())}"
     )
 
 

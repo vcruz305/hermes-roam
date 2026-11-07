@@ -15,10 +15,12 @@ from .tools import (
     safe_device_name,
     safe_error_text,
     safe_relpath,
+    safe_session_id,
     safe_status_error,
+    safe_title,
 )
 
-_VERBS = ("status", "push", "pull", "diff", "devices", "doctor", "history", "help")
+_VERBS = ("status", "push", "pull", "diff", "devices", "sessions", "doctor", "history", "help")
 _MAX_LINES = 20
 _MAX_CHARS = 160
 _MAX_ERROR_CHARS = 300
@@ -35,14 +37,17 @@ def _bullets(lines: list[str]) -> str:
 
 def _help(note: str = "") -> str:
     text = ("Roam commands: /roam status, push, push force, push dry-run, "
-            "pull, pull apply, pull apply overwrite, diff, devices, doctor, "
-            "history, help. pull alone only shows the plan; pull apply "
+            "pull, pull apply, pull apply overwrite, diff, devices, sessions, "
+            "doctor, history, help. pull alone only shows the plan; pull apply "
             "rewrites home files after making a backup; pull apply overwrite "
-            "also overwrites files changed here since the last sync. history "
-            "lists the versions the remote store still holds; recovering one "
-            "is a terminal command: hermes roam restore <path> --generation "
-            "N --apply. The roam_pull tool refuses apply=true unless the user "
-            "enabled allow_agent_apply. Secrets are never synced.")
+            "also overwrites files changed here since the last sync. sessions "
+            "lists pulled read-only session archives — a transcript is never "
+            "dumped here; print one on the terminal with `hermes roam sessions "
+            "show <device> <session_id>`. history lists the versions the "
+            "remote store still holds; recovering one is a terminal command: "
+            "hermes roam restore <path> --generation N --apply. The roam_pull "
+            "tool refuses apply=true unless the user enabled "
+            "allow_agent_apply. Secrets are never synced.")
     return f"Roam: {note}\n{text}" if note else f"Roam: {text}"
 
 
@@ -55,6 +60,10 @@ def handle(raw_args: str, **kwargs) -> str:
             return _help(f"unknown command '{verb}'")
         if verb == "help":
             return _help()
+        if verb == "sessions":
+            # no engine needed: the read-only archive listing reads local
+            # files only and never touches the backend
+            return _sessions()
         errors = roam_module("errors")
         try:
             engine = settings.build_engine()
@@ -82,6 +91,14 @@ def handle(raw_args: str, **kwargs) -> str:
 def _status(engine) -> str:
     status = engine.status()
     lines = [f"device {status.device}, backend {status.backend}"]
+    opt_ins = getattr(status, "opt_ins", {}) or {}
+    lines.append(
+        "session archive publish "
+        + ("ON" if opt_ins.get("session_archive") else "off")
+        + f" (cap {int(opt_ins.get('session_archive_max_mb') or 0)} MB)"
+        + "; cron job definitions "
+        + ("ON" if opt_ins.get("cron_jobs") else "off")
+    )
     if status.remote_generation is None and status.error:
         # R7: the backend error text may be remote-controlled — fixed summary.
         lines.append(f"remote unreachable: {safe_status_error(status.error)}")
@@ -116,13 +133,25 @@ def _push(engine, rest: list[str]) -> str:
         dry_run=any(word in ("dry", "dry-run") for word in rest),
     )
     if result.dry_run:
-        return (f"Roam: dry run — would push {result.file_count} files, "
+        notes = getattr(result, "notes", []) or []
+        text = (f"Roam: dry run — would push {result.file_count} files, "
                 f"{result.bundle_size} bytes; run `hermes roam push --dry-run` "
                 "for the file list")
+        if notes:
+            text += "\n" + _bullets(notes)
+        return text
     if result.skipped_reason:
-        return f"Roam: nothing to push ({result.skipped_reason})"
-    return ("Roam: pushed generation "
+        notes = getattr(result, "notes", []) or []
+        text = f"Roam: nothing to push ({result.skipped_reason})"
+        if notes:
+            text += "\n" + _bullets(notes)
+        return text
+    notes = getattr(result, "notes", []) or []
+    text = ("Roam: pushed generation "
             f"{result.generation} ({result.file_count} files, {result.bundle_size} bytes)")
+    if notes:
+        text += "\n" + _bullets(notes)
+    return text
 
 
 def _pull(engine, rest: list[str]) -> str:
@@ -227,6 +256,40 @@ def _devices(engine) -> str:
     lines = [f"{safe_device_name(d.name)}: pushed {d.last_push_generation}, "
              f"pulled {d.last_pull_generation}" for d in status.devices]
     return "Roam fleet:\n" + _bullets(lines)
+
+
+def _sessions() -> str:
+    """Read-only listing of pulled session archives — NEVER a transcript.
+
+    A transcript is remote-sourced text and must never be bulk-dumped into
+    the model: this surface lists ids/titles (sanitized) and points at the
+    terminal command that prints one.
+    """
+    archive = roam_module("session_archive")
+    home = settings.hermes_home()
+    devices = archive.list_local_archive(home)
+    if not devices:
+        return ("Roam: no pulled session archives on this device; a device "
+                "that enables sync_sessions publishes its transcripts, and "
+                "`hermes roam pull --apply` receives them")
+    lines: list[str] = []
+    for device in devices:
+        sessions = device.get("sessions") or []
+        lines.append(
+            f"{safe_device_name(device.get('device'))}: "
+            f"{len(sessions)} archived session(s) (read-only)"
+        )
+        shown = sessions[:5]
+        for session in shown:
+            lines.append(
+                f"  {safe_session_id(session.get('session_id'))} "
+                f"{safe_title(session.get('title'), 80) or '(no title)'}"
+            )
+        if len(sessions) > len(shown):
+            lines.append(f"  ... {len(sessions) - len(shown)} more")
+    lines.append("print one on the terminal: `hermes roam sessions show <device> <session_id>`")
+    lines.append(archive.local_archive_note())
+    return "Roam sessions:\n" + _bullets(lines)
 
 
 def _history(engine, rest: list[str]) -> str:

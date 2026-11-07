@@ -79,7 +79,11 @@ class RoamSettings:
     git_remote: str = ""
     git_branch: str = "roam"
     local_dir: str = ""
+    # 0.4.1: sync_sessions publishes a READ-ONLY archive of this device's
+    # session transcripts (bundle paths under archive/sessions/<device>/ only).
+    # The raw sessions/ folder is always LOCAL: request dumps never travel.
     sync_sessions: bool = False
+    sessions_max_mb: int = 50  # cap on this device's published archive, newest first
     sync_cron: bool = False
     allow_agent_apply: bool = False  # gate for model-driven roam pull --apply (default off)
     auto_push: bool = False
@@ -208,6 +212,9 @@ class Status:
     error: str = ""
     recovered: str | None = None  # what crash recovery rolled back at the start of this call
     pending_auto_push: bool = False  # a killed/failed auto-push awaits the next session (R9)
+    # 0.4.1: the on/off state of the optional sync items, so every surface can
+    # show what this device opted into (local data, never remote-controlled).
+    opt_ins: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         d = dataclasses.asdict(self)
@@ -243,6 +250,7 @@ class PushResult:
     dry_run: bool
     skipped_reason: str = ""  # "nothing to push" etc.
     files: list[str] = field(default_factory=list)  # bundle relpaths (dry_run and real push)
+    notes: list[str] = field(default_factory=list)  # 0.4.1: e.g. session-archive publish/degrade notices
     recovered: str | None = None  # what crash recovery rolled back at the start of this call
 
     def to_dict(self) -> dict[str, Any]:

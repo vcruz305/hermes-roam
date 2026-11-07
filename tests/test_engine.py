@@ -871,14 +871,18 @@ def test_status_clean_when_base_carries_rules_hidden_paths(tmp_path: Path) -> No
     assert dirty.dirty_count == 1
 
 
-def test_status_clean_after_opting_out_of_a_synced_class(tmp_path: Path) -> None:
-    """Round-4 h2 regression, publisher side: after a device opts out of a
-    class it previously synced (the campaign's alpha turning sync_sessions
-    back off), the synced entries become invisible carry-forward state —
-    status must report clean and push must answer "nothing to push"."""
+def test_status_clean_after_opting_out_of_a_synced_class(tmp_path: Path, monkeypatch) -> None:
+    """Round-4 h2 regression, publisher side, 0.4.1 form: after a device
+    opts out of the class it previously published (the campaign's alpha
+    turning sync_sessions back off), the push unpublishes this device's
+    OWN archive namespace only, the rest of the fleet state stays clean,
+    and the settled state afterwards answers "nothing to push". The raw
+    sessions/ folder is always LOCAL and never part of any push."""
+    from roam import session_archive as archive_mod
+
     backend = FakeBackend()
     home_a = tmp_path / "home-a"
-    write(home_a / "sessions/s.json", b"{}")
+    write(home_a / "sessions/request_dump_1.json", b"{}")  # always LOCAL now
     engine_a = Engine(
         home_a,
         RoamSettings(
@@ -887,10 +891,37 @@ def test_status_clean_after_opting_out_of_a_synced_class(tmp_path: Path) -> None
         backend,
         VERSION,
     )
+    # tests never spawn the real Hermes CLI: the export is injected through
+    # the module attribute the lazy pipeline loader resolves at call time
+    monkeypatch.setattr(archive_mod, "find_hermes", lambda: "hermes")
+    monkeypatch.setattr(
+        archive_mod,
+        "collect_export",
+        lambda home, scratch, exe, timeout: (
+            [
+                {
+                    "name": "sess-abc123.md",
+                    "data": b"# transcript\nsession_id: sess-abc123\n",
+                    "header": {"session_id": "sess-abc123", "updated_at": "2026-11-07"},
+                }
+            ],
+            "",
+        ),
+    )
+
+    def signed() -> dict:
+        pair = backend.get_head()
+        assert pair is not None
+        return head_mod.verify_head(pair[0], KEY).files
+
     engine_a.init(create_remote=True)
     assert engine_a.push().generation == 1
+    assert "archive/sessions/dev-a/sess-abc123.md" in signed()
 
-    # the same home opts out of sessions on its next run
+    # the raw request dump never traveled
+    assert "sessions/request_dump_1.json" not in signed()
+
+    # the same home opts out of publishing the archive on its next run
     engine_off = Engine(
         home_a,
         RoamSettings(backend="fake", device_name="dev-a", archive_key=KEY),
@@ -902,8 +933,12 @@ def test_status_clean_after_opting_out_of_a_synced_class(tmp_path: Path) -> None
     assert settled.local_dirty is False
     assert settled.dirty_count == 0
     again = engine_off.push()
-    assert again.skipped_reason == "nothing to push"
-    # the session stays pinned in the signed head for devices that opt in
-    pair = backend.get_head()
-    signed = head_mod.verify_head(pair[0], KEY)
-    assert "sessions/s.json" in signed.files
+    # the opt-out PUBLISHES the unpublishing: this device's own archive
+    # namespace leaves the manifest, and the push goes through
+    assert again.generation == 2
+    assert "archive/sessions/dev-a/sess-abc123.md" not in signed()
+    # with the fleet state now settled, the next push has nothing to do
+    settled_again = engine_off.status()
+    assert settled_again.local_dirty is False
+    assert settled_again.dirty_count == 0
+    assert engine_off.push().skipped_reason == "nothing to push"

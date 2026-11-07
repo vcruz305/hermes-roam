@@ -35,7 +35,12 @@ In plain words:
   `plugin-data/`, per-profile homes, `hooks/` (Hermes runs hooks at startup,
   so syncing them would run remote code on the other device), and anything
   else the allowlist does not name.
-- **Opt-in, off by default:** `sessions/` (transcripts) and `cron/` jobs.
+- **Opt-in, off by default:** the read-only session archive
+  (`sync_sessions`: publishes this device's transcripts, exported by
+  Hermes's own CLI, capped, read-only everywhere it lands — other devices
+  list them with `hermes roam sessions` but can never resume or re-push
+  them; the raw `sessions/` request-dump folder never travels) and cron
+  job definitions only (`sync_cron`; run output never travels).
 - **Ignored entirely:** caches, logs, backups, sandboxes, temp dirs, and the
   hub's own state under `skills/` (lockfiles, locks, archives).
 - **Host-scoped config keys** (terminal, paths, display interface, browser

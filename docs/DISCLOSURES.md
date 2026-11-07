@@ -72,9 +72,15 @@ explicitly accepted with the reason given; nothing is hidden.
    `<host-home>/struct.py` (unrelated campaign tooling) shadows the stdlib `struct` module.
    Run gates from any other cwd. Recorded in REAL_HERMES_PROOF §0.
 
-7. **Session and cron sync are opt-in and unproven live.** `sync_sessions` and
-   `sync_cron` default to False; the demo did not enable them. The default pull
-   installs neither, and the pull preview says so.
+7. **Session and cron sync are opt-in; the 0.4.1 archive is proven live.**
+   `sync_sessions` and `sync_cron` default to False. Since 0.4.1 the raw
+   `sessions/` folders are ALWAYS local (they hold redacted request dumps,
+   not transcripts), and `sync_sessions` instead publishes a READ-ONLY
+   archive exported by Hermes's own CLI; `sync_cron` moves ONLY
+   `cron/jobs.json`, never run output. Both opt-ins' on/off state is shown
+   by `hermes roam status`. The live proof (demo stage 4) enables the
+   archive on one home, publishes a real imported session, and reads it
+   back read-only on the second home.
 
 8. **Probe pollution during debugging.** While isolating the git CAS bug, a manual
    probe pushed a synthetic head to the demo git remote; the branch was reset to the
@@ -118,3 +124,16 @@ explicitly accepted with the reason given; nothing is hidden.
    requirements, and every real install into a campaign or demo home
    carries pyyaml and boto3 (the 0.2.0 fix holds — the S3 import works in
    every home that configures it).
+
+12. **0.4.1 session-export subprocess, disclosed.** With `sync_sessions`
+   enabled, a push runs Hermes's own documented export as an argv
+   subprocess — `hermes sessions export <tmpdir> --format md --redact
+   --after 2000-01-01 --force` — with `HERMES_HOME` set to the active home,
+   stdin closed, and a hard timeout inside the armed operation deadline; it
+   never uses a shell and the path asks no prompts. The transcripts are
+   capped (`sessions_max_mb`, default 50 MB, newest first) and published
+   under the pushing device's own namespace only. Hermes's `--redact` pass
+   is best-effort pattern matching: an archived transcript may still
+   contain anything the user typed, which the README states plainly. If
+   the export fails, the push degrades to a clear notice, everything else
+   still syncs, and the previously published archive is kept.

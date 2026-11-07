@@ -109,11 +109,33 @@ DEFAULT_RULES: tuple[tuple[str, Scope], ...] = (
     # (The plugin's own .git/ dirs stay IGNORED via the rule above.) Only
     # roam/installed-plugins.json (names + pinned sha) is synced.
     ("plugins/**", Scope.LOCAL),
-    # Opt-in classes: off unless the device opts in, top level and per profile.
-    ("sessions/", Scope.SESSIONS),
-    ("cron/", Scope.CRON),
-    ("profiles/*/sessions/", Scope.SESSIONS),
-    ("profiles/*/cron/", Scope.CRON),
+    # 0.4.1: the read-only session archive namespace. These paths exist
+    # only inside bundles (a pushing device exports them with Hermes's own
+    # `hermes sessions export`); no home path ever classifies here and the
+    # receiver installs them read-only under <home>/roam/session-archive/
+    # (LOCAL). Reading requires no opt-in; publishing does (sync_sessions).
+    # This rule MUST sit above the raw sessions/ rule: `sessions/` is a
+    # single-segment pattern that matches any `sessions` path segment, so a
+    # lower position would swallow the archive namespace whole.
+    ("archive/sessions/**", Scope.SESSIONS),
+    # 0.4.1: the raw sessions folder is ALWAYS LOCAL. In Hermes 0.22.5 it is
+    # agent.logs_dir — redacted request_dump_*.json debug files and rare
+    # fallback jsonl shards — never real transcript history (that lives in
+    # the LOCAL state.db). Request dumps must never travel; the opt-in
+    # session archive is published from Hermes's own `hermes sessions
+    # export` under the bundle-only archive/sessions/ namespace instead.
+    ("sessions/", Scope.LOCAL),
+    ("profiles/*/sessions/", Scope.LOCAL),
+    # Opt-in cron: JOB DEFINITIONS only. In Hermes 0.22.5 <home>/cron/ holds
+    # jobs.json (the definitions) plus run output under cron/output/, lock
+    # files, and telemetry stamps — only jobs.json may ever travel; run
+    # output and bookkeeping are machine-local.
+    ("cron/jobs.json", Scope.CRON),
+    ("profiles/*/cron/jobs.json", Scope.CRON),
+    ("cron/output/", Scope.IGNORED),
+    ("profiles/*/cron/output/", Scope.IGNORED),
+    ("cron/**", Scope.LOCAL),
+    ("profiles/*/cron/**", Scope.LOCAL),
     # The allowlist: only these paths ever travel, top level and per profile.
     # roam/rules.yaml is NOT here: it is per-device policy and always LOCAL
     # (R2) — a device's rules never move to another machine.

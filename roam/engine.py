@@ -25,6 +25,7 @@ from typing import Any
 # every sibling must resolve to the same module object in either identity.
 from . import head as head_mod
 from . import restore
+from . import session_archive as archive_mod
 from .backends.base import Backend
 from .errors import (
     ArchiveError,
@@ -110,6 +111,9 @@ class Pipeline:
     merge_config: Callable[..., Any] = _lazy("scope", "merge_config")
     strip_host_keys: Callable[..., Any] = _lazy("scope", "strip_host_keys")
     generate_installed_plugins: Callable[..., Any] = _lazy("scope", "generate_installed_plugins")
+    # 0.4.1: the opt-in session archive export (Hermes's own `hermes sessions
+    # export` subprocess). Injectable so tests never spawn a real CLI.
+    export_sessions: Callable[..., Any] = _lazy("session_archive", "collect_export")
 
 
 def _sha256_bytes(data: bytes) -> str:
@@ -537,7 +541,7 @@ class Engine:
             except Exception:  # noqa: BLE001 - a broken classifier fails closed below
                 out.append(relpath)
                 continue
-            if scope in (Scope.LOCAL, Scope.IGNORED) or scope not in self._sync_classes():
+            if scope in (Scope.LOCAL, Scope.IGNORED) or scope not in self._push_include():
                 out.append(relpath)
         return sorted(out)
 
@@ -558,10 +562,26 @@ class Engine:
             out[relpath] = data
         return out
 
-    def _sync_classes(self) -> set[Scope]:
+    def _push_include(self) -> set[Scope]:
+        """Scope classes a PUSH may ever bundle from this home (0.4.1).
+
+        The session archive namespace is deliberately absent: no home path
+        classifies into it (the raw sessions/ folder is LOCAL), and the
+        opt-in archive is published as generated bundle members, never as
+        walked files. The SESSIONS class here would only widen the walk.
+        """
         classes = {Scope.SHARED}
-        if self.settings.sync_sessions:
-            classes.add(Scope.SESSIONS)
+        if self.settings.sync_cron:
+            classes.add(Scope.CRON)
+        return classes
+
+    def _pull_default_classes(self) -> set[Scope]:
+        """Default pull classes (0.4.1). The read-only session archive is
+        always among them: READING what another device published needs no
+        opt-in — only PUBLISHING does (sync_sessions on the pushing device)
+        — and the install lands read-only under <home>/roam/session-archive/,
+        never in the home tree and never re-pushable."""
+        classes = {Scope.SHARED, Scope.SESSIONS}
         if self.settings.sync_cron:
             classes.add(Scope.CRON)
         return classes
@@ -576,7 +596,7 @@ class Engine:
     def _collect(self) -> tuple[object, list, dict[str, bytes], dict[str, dict]]:
         """Walk the home and build the exact manifest a push would bundle."""
         rules = self.pipeline.load_rules(self.home)
-        include = self._sync_classes()
+        include = self._push_include()
         entries = self.pipeline.walk_home(self.home, rules, include=include)
         host_keys = self._host_keys(rules)
         extras: dict[str, bytes] = {}
@@ -686,7 +706,17 @@ class Engine:
             devices=devices,
             error=error,
             recovered=recovered,
+            opt_ins=self._opt_ins(),
         )
+
+    def _opt_ins(self) -> dict:
+        """The optional sync items' on/off state (0.4.1): local settings,
+        never remote-controlled text, shown by every status surface."""
+        return {
+            "session_archive": bool(self.settings.sync_sessions),
+            "session_archive_max_mb": int(self.settings.sessions_max_mb),
+            "cron_jobs": bool(self.settings.sync_cron),
+        }
 
     def diff(self) -> Diff:
         """What a pull would change, grouped by scope class (matches PullResult.plan)."""
@@ -717,24 +747,34 @@ class Engine:
             remote_entry = signed.files.get(relpath)
             # this device's local rules classify everything a pull could touch
             scope = self.pipeline.classify(relpath, rules)
+            # 0.4.1: session archive members are shown at the read-only install
+            # path they would actually land at, never at the bundle namespace
+            shown = archive_mod.install_relpath(relpath)
             if local_entry is None:
                 # remote-only: a pull would add it
-                group(added, scope, relpath)
+                group(added, scope, shown)
             elif remote_entry is None:
                 # local-only: a pull would delete it only if roam managed it at the last sync
                 if relpath in (state.base_files or {}):
-                    group(removed, scope, relpath)
+                    group(removed, scope, shown)
             elif _comparable({relpath: local_entry})[relpath] != _comparable(
                 {relpath: remote_entry}
             )[relpath]:
-                group(changed, scope, relpath)
+                group(changed, scope, shown)
         return Diff(added=added, changed=changed, removed=removed,
                     remote_generation=signed.generation)
 
     def estimate_bundle_bytes(self) -> int:
-        """Upper-bound estimate of the next bundle size (zip + envelope overhead)."""
+        """Upper-bound estimate of the next bundle size (zip + envelope overhead).
+
+        0.4.1: with the session archive opted in, the export is capped at
+        ``sessions_max_mb``, so the cap is the honest upper bound of what the
+        archive can add on top of the walked home.
+        """
         _, entries, extras, _ = self._collect()
         total = sum(entry.size for entry in entries) + sum(len(data) for data in extras.values())
+        if self.settings.sync_sessions:
+            total += self.settings.sessions_max_mb * 1024 * 1024
         members = len(entries) + len(extras) + 1
         return total + members * 1024 + 65536
 
@@ -764,6 +804,72 @@ class Engine:
         with self._process_lock(what="push"):
             return self._push(force=force, dry_run=dry_run)
 
+    def _session_archive_extras(self) -> tuple[dict[str, bytes], list[str], bool]:
+        """The opt-in session archive members a push would bundle (0.4.1).
+
+        With ``sync_sessions`` enabled, this home's sessions are exported by
+        Hermes's own documented CLI — ``hermes sessions export --format md
+        --redact`` — run as a disclosed argv subprocess with ``HERMES_HOME``
+        set to the active home, stdin closed and a hard timeout inside the
+        armed operation deadline, then capped at ``sessions_max_mb`` NEWEST
+        first. Any failure degrades to a clear notice: the push of
+        everything else still succeeds and the previously published archive
+        is kept by the caller.
+        """
+        if not self.settings.sync_sessions:
+            return {}, [], True
+        notes: list[str] = []
+        scratch = self._roam_subdir("tmp") / f"sess-{uuid.uuid4().hex}"
+        try:
+            hermes_exe = archive_mod.find_hermes()
+            remaining = (self._deadline or 0.0) - time.monotonic()
+            if remaining <= 1.0 or not hermes_exe:
+                entries, reason = [], (
+                    "the operation deadline left no time for the export"
+                    if remaining <= 1.0
+                    else "the hermes executable was not found on PATH"
+                )
+            else:
+                entries, reason = self.pipeline.export_sessions(
+                    self.home,
+                    scratch,
+                    hermes_exe,
+                    min(remaining, archive_mod.EXPORT_TIMEOUT_CAP),
+                )
+        finally:
+            shutil.rmtree(scratch, ignore_errors=True)
+        if reason:
+            notes.append(
+                f"the session archive could not be exported ({reason}); this push "
+                "continues without publishing session transcripts and keeps the "
+                "previously published archive"
+            )
+            return {}, notes, False
+        kept, dropped = archive_mod.cap_entries(
+            entries, self.settings.sessions_max_mb * 1024 * 1024
+        )
+        extras: dict[str, bytes] = {}
+        for entry in kept:
+            try:
+                relpath = archive_mod.bundle_relpath(
+                    self.settings.device_name, str(entry["name"])
+                )
+            except (KeyError, ValueError):
+                continue
+            extras[relpath] = entry["data"]
+        if dropped:
+            notes.append(
+                f"the session archive cap (sessions_max_mb="
+                f"{self.settings.sessions_max_mb}) dropped {dropped} older "
+                "session(s) from this push"
+            )
+        notes.append(
+            f"published {len(extras)} session transcript(s) in this device's "
+            f"read-only archive namespace ({archive_mod.ARCHIVE_PREFIX}"
+            f"{self.settings.device_name}/)"
+        )
+        return extras, notes, True
+
     def _push(self, *, force: bool = False, dry_run: bool = False) -> PushResult:
         # R10: the init gate lives in the engine, so every surface inherits it.
         if not (self._roam_dir() / STATE_FILE).is_file():
@@ -792,10 +898,32 @@ class Engine:
                 f"saw {state.last_seen_generation}; pull first (or push with --force)"
             )
         rules, entries, extras, manifest = self._collect()
+        # 0.4.1: the opt-in session archive — generated bundle members, never
+        # walked files. A failed export degrades to a notice; the caller then
+        # keeps this device's previously published archive (below).
+        session_extras, session_notes, session_export_ok = self._session_archive_extras()
+        extras.update(session_extras)
+        for relpath, data in session_extras.items():
+            manifest[relpath] = {
+                "sha256": _sha256_bytes(data),
+                "size": len(data),
+                "mode": 0o444,  # read-only wherever it lands
+                "scope": Scope.SESSIONS.value,
+            }
         # R1: base entries this device cannot see under its own rules and
         # opt-ins are carried forward byte-identical from the last synced
         # bundle — only a device that can see a path can delete it.
         carried = self._invisible_base_entries(manifest, state.base_files, rules)
+        # 0.4.1 namespace policy: a device may only replace its OWN
+        # archive/sessions/<device>/ namespace. Other devices' namespaces are
+        # carry-forward fleet state; this device's own namespace follows the
+        # opt-in — a successful export replaces it, a FAILED export keeps the
+        # published archive, and turning sync_sessions off unpublishes it.
+        own_prefix = f"{archive_mod.ARCHIVE_PREFIX}{self.settings.device_name}/"
+        own_carried = [relpath for relpath in carried if relpath.startswith(own_prefix)]
+        carried = [relpath for relpath in carried if not relpath.startswith(own_prefix)]
+        if self.settings.sync_sessions and not session_export_ok:
+            carried = sorted(set(carried) | set(own_carried))
         if carried:
             if not self._last_roam_path().is_file():
                 raise CarryForwardError(
@@ -816,6 +944,7 @@ class Engine:
                 file_count=len(manifest),
                 dry_run=dry_run,
                 skipped_reason="nothing to push",
+                notes=session_notes,
                 recovered=recovered,
             )
         if dry_run:
@@ -830,6 +959,7 @@ class Engine:
                 bundle_size=self.estimate_bundle_bytes() + carried_bytes_estimate,
                 file_count=len(manifest),
                 files=sorted(manifest),
+                notes=session_notes,
                 dry_run=True,
                 recovered=recovered,
             )
@@ -934,6 +1064,7 @@ class Engine:
             bundle_size=info.size,
             file_count=len(manifest),
             files=sorted(manifest),
+            notes=session_notes,
             dry_run=False,
             recovered=recovered,
         )
@@ -1002,7 +1133,7 @@ class Engine:
                 notes=["the remote head has no bundle yet (generation 0); nothing to pull"],
                 recovered=recovered,
             )
-        selected = set(classes) if classes else self._sync_classes()
+        selected = set(classes) if classes else self._pull_default_classes()
         rules = self.pipeline.load_rules(self.home)
         if dry_run:
             apply = False
@@ -1389,6 +1520,8 @@ class Engine:
                 return False
             if _is_config_path(relpath):
                 return False  # configs travel stripped and merge key-by-key
+            if archive_mod.is_archive_relpath(relpath):
+                return False  # read-only archive members are not restorable
             return path is None or relpath == path
 
         def entry(record: dict, relpath: str, content: dict, *, deleted: bool) -> dict:
@@ -1456,8 +1589,15 @@ class Engine:
                 "for the recoverable list"
             )
         rules = self.pipeline.load_rules(self.home)
+        if archive_mod.is_archive_relpath(path):
+            raise RoamError(
+                "restore refuses session archive paths: archived transcripts are "
+                "read-only — a pull installs them under "
+                "<home>/roam/session-archive/, and `hermes roam sessions` lists "
+                "them; there is nothing to restore into the home"
+            )
         scope = self.pipeline.classify(path, rules)
-        if scope in (Scope.LOCAL, Scope.IGNORED) or scope not in self._sync_classes():
+        if scope in (Scope.LOCAL, Scope.IGNORED) or scope not in self._pull_default_classes():
             raise RoamError(
                 f"restore refuses this path: {path!r} is {scope.value} under this "
                 "device's rules; only shared or opted-in paths can be restored"
@@ -1626,6 +1766,7 @@ class Engine:
             manifest: dict[str, dict] = {}
             skipped_local: list[str] = []
             unapproved: list[str] = []
+            archive_planned = 0
             # The planning manifest is the SIGNED HEAD's file list, not the
             # bundle's inner zip manifest: carried members (R1) and the
             # stripped configs travel as bundle members outside the zip
@@ -1652,8 +1793,20 @@ class Engine:
                 if scope in (Scope.LOCAL, Scope.IGNORED) or scope not in classes:
                     skipped_local.append(relpath)
                     continue
-                if (staging_dir / relpath).is_file():
-                    manifest[relpath] = {**entry, "scope": scope.value}
+                # 0.4.1: session archive members never land in the home tree.
+                # The staged member is relocated to its read-only install path
+                # (<home>/roam/session-archive/<device>/...): everything under
+                # roam/ is LOCAL, so a receiver can never re-push them.
+                install_path = archive_mod.install_relpath(relpath)
+                staged_member = staging_dir / relpath
+                if install_path != relpath and staged_member.is_file():
+                    target_member = staging_dir / install_path
+                    target_member.parent.mkdir(parents=True, exist_ok=True)
+                    os.replace(staged_member, target_member)
+                    staged_member = target_member
+                    archive_planned += 1
+                if staged_member.is_file():
+                    manifest[install_path] = {**entry, "scope": scope.value}
                 else:
                     from .textsafe import untrusted
 
@@ -1666,12 +1819,20 @@ class Engine:
                 if not _prefix_allowed(relpath, include_prefixes):
                     continue
                 enriched = dict(entry) if isinstance(entry, dict) else {}
+                # classification on the HEAD's path; the install key is the
+                # read-only remap for session archive members (0.4.1)
                 enriched["scope"] = self.pipeline.classify(relpath, rules).value
-                base_manifest[relpath] = enriched
-            for relpath in base_manifest:
+                base_manifest[archive_mod.install_relpath(relpath)] = enriched
+            for relpath, enriched in base_manifest.items():
                 if relpath in manifest:
                     continue  # already classified (and possibly refused) above
-                scope = self.pipeline.classify(relpath, rules)
+                # the scope was classified on the HEAD's path above; for session
+                # archive members the install key lives under roam/ and would
+                # misclassify (0.4.1), so the stored verdict is authoritative
+                try:
+                    scope = Scope(str(enriched.get("scope")))
+                except ValueError:
+                    scope = Scope.LOCAL
                 if scope in (Scope.LOCAL, Scope.IGNORED) or scope not in classes:
                     # a remote deletion this device's local policy refuses to perform
                     skipped_local.append(relpath)
@@ -1712,6 +1873,12 @@ class Engine:
             notes.append(
                 f"{len(skipped_local)} remote path(s) are refused by this device's local "
                 f"rules or opt-in settings and were not written or deleted: {shown}"
+            )
+        if archive_planned:
+            notes.append(
+                f"{archive_planned} session archive member(s) land READ-ONLY under "
+                "<home>/roam/session-archive/<device>/ — never in the home tree, never "
+                "re-pushable, never resumable; list them with `hermes roam sessions`"
             )
         if unapproved:
             notes.append(

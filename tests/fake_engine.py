@@ -51,7 +51,8 @@ def _devices() -> list[model.DeviceInfo]:
 
 @dataclass(frozen=True)
 class FakeStatus:
-    """Status mirror plus the pre-agreed 0.2.0 ``recovered`` field."""
+    """Status mirror plus the pre-agreed 0.2.0 ``recovered`` field and the
+    0.4.1 ``opt_ins`` disclosure dict (locally generated, never remote)."""
 
     device: str
     backend: str
@@ -65,6 +66,7 @@ class FakeStatus:
     devices: list
     error: str = ""
     recovered: str | None = None
+    opt_ins: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return dataclasses.asdict(self)
@@ -167,7 +169,8 @@ class FakePullResult:
 
 @dataclass(frozen=True)
 class FakePushResult:
-    """PushResult mirror plus the pre-agreed 0.2.0 fields."""
+    """PushResult mirror plus the pre-agreed 0.2.0 fields and the 0.4.1
+    ``notes`` list (plugin-authored session-archive notices)."""
 
     generation: int
     bundle_key: str
@@ -177,6 +180,7 @@ class FakePushResult:
     skipped_reason: str = ""
     files: list = field(default_factory=list)
     recovered: str | None = None
+    notes: list = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -188,6 +192,7 @@ class FakePushResult:
             "skipped_reason": self.skipped_reason,
             "files": list(self.files),
             "recovered": self.recovered,
+            "notes": list(self.notes),
         }
 
 

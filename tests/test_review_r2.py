@@ -345,41 +345,54 @@ def test_f6_local_rules_cannot_block_remote_files(tmp_path) -> None:
 # ----------------------------------------------------------------- f7
 
 
-def test_f7_non_optin_device_wipes_sessions_fleet_wide(tmp_path) -> None:
-    """# RULING: (R1, round 3) the roster 'syncs' guard is gone: a device that
-    cannot see a path can never delete it. B's push must carry the sessions
-    entry forward from roam/last.roam byte-identical, so the signed
-    manifest keeps listing it and A's pull never deletes A's transcripts."""
+def test_f7_non_optin_device_wipes_sessions_fleet_wide(tmp_path, monkeypatch) -> None:
+    """# RULING: (R1, round 3; rechecked for the 0.4.1 archive) the roster
+    'syncs' guard is gone: a device that cannot see a path can never delete
+    it. A publishes its opt-in read-only archive; B (sync_sessions off)
+    receives it read-only under roam/session-archive/ and B's push must
+    carry A's archive entries forward from roam/last.roam byte-identical,
+    so the signed manifest keeps listing them and no device can wipe
+    another device's archive."""
+    from roam import session_archive as archive_mod
+
     backend = FakeBackend()
-    home_a = make_home(tmp_path, "home-a", {
-        "sessions/s1.jsonl": b'{"turn": 1}',
-        "skills/keep/SKILL.md": b"keep",
-    })
+    home_a = make_home(tmp_path, "home-a", {"skills/keep/SKILL.md": b"keep"})
     engine_a = mk_engine(home_a, "dev-a", backend, sync_sessions=True)
-    init_and_push(engine_a)  # generation 1 carries sessions/s1.jsonl
+    monkeypatch.setattr(archive_mod, "find_hermes", lambda: "hermes")
+    monkeypatch.setattr(
+        archive_mod,
+        "collect_export",
+        lambda home, scratch, exe, timeout: (
+            [
+                {
+                    "name": "sess-1.md",
+                    "data": b"# transcript one\nsession_id: sess-1\n",
+                    "header": {"session_id": "sess-1", "updated_at": "2026-11-06"},
+                }
+            ],
+            "",
+        ),
+    )
+    init_and_push(engine_a)  # generation 1 carries archive/sessions/dev-a/sess-1.md
 
     home_b = make_home(tmp_path, "home-b")
     engine_b = mk_engine(home_b, "dev-b", backend)  # sync_sessions=False
-    engine_b.pull(apply=True)  # sessions skipped, not installed on B
+    engine_b.pull(apply=True)  # archive installed READ-ONLY under B's roam/
 
     write(home_b / "skills/new/SKILL.md", b"b's own work")
-    engine_b.push()  # generation 2: the sessions entry is carried forward
+    engine_b.push()  # generation 2: A's archive entries are carried forward
     files = signed_files(backend)
-    assert "sessions/s1.jsonl" in files, (
-        "device B's push dropped the sessions entry it cannot see instead "
-        "of carrying it forward from roam/last.roam: every opted-in "
-        "device's next pull would delete its local session files"
+    assert "archive/sessions/dev-a/sess-1.md" in files, (
+        "device B's push dropped the archive entry it cannot see instead "
+        "of carrying it forward from roam/last.roam: every device's next "
+        "pull would lose A's published archive"
     )
-    base_entry = files["sessions/s1.jsonl"]
+    base_entry = files["archive/sessions/dev-a/sess-1.md"]
     assert base_entry.get("sha256") and base_entry.get("size"), (
         "the carried-forward entry lost its content identity"
     )
-
-    engine_a.pull(apply=True)  # A pulls the generation B published
-    assert (home_a / "sessions/s1.jsonl").exists(), (
-        "device A's session transcript was deleted from A's home by pulling "
-        "the manifest a non-opted-in device pushed"
-    )
+    # B's own push published nothing session-related of its own
+    assert not [p for p in files if p.startswith("archive/sessions/dev-b/")]
 
 
 # ----------------------------------------------------------------- f8

@@ -63,6 +63,20 @@ def safe_relpath(path: object) -> str:
     return text
 
 
+def safe_session_id(value: object) -> str:
+    """An archived session identifier is remote-sourced text read back from
+    disk (0.4.1): a surface shows one only when it passes the strict
+    archive charset; anything else becomes a fixed placeholder."""
+    text = str(value)
+    return text if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", text) else "invalid-session-id"
+
+
+def safe_title(value: object, limit: int = 120) -> str:
+    """An archived session title is remote-sourced text read back from disk
+    (0.4.1): sanitized to one line and capped before any listing shows it."""
+    return roam_module("textsafe").clean_line(value, limit)
+
+
 def safe_error_text(exc: BaseException) -> str:
     """What a surface may say about an exception (R7).
 
@@ -196,7 +210,11 @@ def _fail(exc: Exception) -> str:
 
 
 def _classes(raw: object) -> tuple[object, str]:
-    """Map the schema's class names to Scope values; (classes, error)."""
+    """Map the schema's class names to Scope values; (classes, error).
+
+    0.4.1: the read-only session archive is always among the pull
+    defaults — reading what another device published needs no opt-in — so
+    SESSIONS is added whatever the caller picked."""
     model = roam_module("model")
     if raw in (None, ""):
         return None, ""
@@ -207,7 +225,7 @@ def _classes(raw: object) -> tuple[object, str]:
         "sessions": model.Scope.SESSIONS,
         "cron": model.Scope.CRON,
     }
-    picked = set()
+    picked = {model.Scope.SESSIONS}
     for item in raw:
         scope = allowed.get(str(item).strip().lower())
         if scope is None:

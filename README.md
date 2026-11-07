@@ -39,6 +39,85 @@ This answers the roaming-home thread at
   compare-and-swap protected; a device that is behind must pull before it can
   push. There is no silent overwrite.
 
+## What syncs — the three tiers
+
+This is the whole contract, up front. Every file in the home is classified
+by its relative path, first match wins, before anything is read for a bundle;
+the defaults are an ALLOWLIST — an unknown file can never leak into a bundle.
+
+**Always synced (no opt-in, cannot be turned off per file):**
+
+- `skills/`, `memories/`, `SOUL.md`, `skins/`, `hermes-pack.yaml` — your
+  written content, at the top level and inside every `profiles/*/`.
+- `config.yaml` — with every host-specific key stripped on push and kept
+  local on pull (see the merging section below).
+- `roam/installed-plugins.json` — the pinned list of plugin *names and
+  commit shas* so the other device reinstalls plugin code from its source,
+  never from the bundle.
+
+**Optional, off by default — each device opts in itself:**
+
+- **Session archive** (`sync_sessions`): publish a READ-ONLY archive of this
+  device's session transcripts. Enable it with
+
+  ```sh
+  hermes config set plugins.entries.hermes-roam.settings.sync_sessions true
+  ```
+
+  It does: export this home's sessions with Hermes's own
+  `hermes sessions export --format md --redact` and publish the transcripts
+  under this device's private bundle namespace (`archive/sessions/<device>/`),
+  capped at `sessions_max_mb` (default 50 MB, newest transcripts first). It
+  does not: sync the raw `sessions/` folder (request dumps are always
+  local), resume or re-run anything, or let another device replace this
+  device's namespace. Other devices that pull receive the archive
+  read-only under `<home>/roam/session-archive/<device>/` — reading needs no
+  opt-in, only publishing does — and list it with `hermes roam sessions`;
+  a pulled archive can never be re-pushed, and archived sessions can never
+  be resumed. Transcripts travel encrypted, but Hermes's `--redact` pass is
+  best-effort pattern matching: **an archived transcript may still contain
+  anything you typed**, including secrets you pasted into a session.
+- **Cron job definitions** (`sync_cron`): enable with
+
+  ```sh
+  hermes config set plugins.entries.hermes-roam.settings.sync_cron true
+  ```
+
+  It syncs ONLY the job definitions (`cron/jobs.json`, top level and per
+  profile) — never run output, logs, locks, or telemetry stamps, which are
+  machine-local. A pulled job definition still needs explicit scheduling on
+  the receiving device.
+- **Hooks** (`hooks/` and friends): not a setting — opt in per device via a
+  `shared:` entry in `roam/rules.yaml`. Hooks are executable code, so opting
+  in means choosing to run the other machine's code.
+
+**Never synced (no setting can make them travel):**
+
+- Secrets: `.env`, `auth.json`, `auth.json.*`, and every other credential
+  file.
+- The live session database `state.db` and its sidecars — real session
+  history is machine-local; only the opt-in archive above ever publishes a
+  transcript, and only as read-only markdown.
+- The raw `sessions/` folders (top level and per profile): in Hermes 0.22.5
+  they hold redacted `request_dump_*.json` debug files, not transcripts.
+- Caches and logs: `cache/`, `audio_cache/`, `image_cache/`, `logs/`,
+  `backups/`, `bootstrap-cache/`, `checkpoints/`, `sandboxes/`,
+  `state-snapshots/`, `tmp/`, `__pycache__/`, `.git/`, `venv/`, `.venv/`,
+  `reports/`, `profile-archives/`, and the Hermes-managed dot-state inside
+  the skills tree (`skills/.*`).
+- Host-specific config keys (the merging list below) and anything that is
+  an absolute path under a user home directory.
+- Hub-installed skills (they are reproducible from the hub; your own
+  written skills keep syncing).
+- Plugin code trees under `plugins/`, `hooks/`, `tui-widgets/`,
+  `desktop-plugins/`, `pets/`, and everything else under `<home>/roam/`
+  (sync state, backups, journals — and pulled, read-only session archives).
+- `roam/rules.yaml` — per-device policy; each device's rules are its own.
+
+`hermes roam status` shows the on/off state of every optional item;
+`hermes roam rules` prints the same three tiers against this device's
+effective rules.
+
 ## Quick start (60 seconds)
 
 On the first machine:
@@ -87,7 +166,8 @@ parts (model settings, skills, memories, SOUL) arrive. The bundled
 Every file in the home is classified by its relative path, first match wins,
 before anything is read for a bundle. The defaults are an ALLOWLIST: only the
 named shared paths ever travel, and any path no rule matches stays on its
-machine — an unknown file can never leak into a bundle. The default classes:
+machine. The three-tier contract above is the summary; this section is the
+complete classification detail.
 
 **Shared — always synced:** `config.yaml` (minus the host-scoped keys below),
 `SOUL.md`, `memories/`, `skills/`, `skins/`, `hermes-pack.yaml`,
@@ -101,18 +181,17 @@ files (`*.lock`, `auth.lock`), `state.db` and its sidecars,
 (`profiles/*/home/`), `context_length_cache.yaml*`,
 `channel_directory.json`, `*.bak*`, `*.before-*`, `*.pid`, `*.tmp`,
 `node_modules/`, `installs/`, the plugin code trees under `plugins/`,
-`hooks/` (see below), `tui-widgets/`, `desktop-plugins/`, `pets/`,
+`hooks/` (see above), `tui-widgets/`, `desktop-plugins/`, `pets/`,
 `roam/rules.yaml`, and everything else under `<home>/roam/`.
 
-**Hooks are local by default.** Hermes loads `hooks/` at startup, so syncing
-executable hooks between machines would run remote code on the other device.
-If you want them to travel anyway, opt in via a `shared:` entry in
-`roam/rules.yaml` — you are choosing to run the other machine's code.
-
-**Opt-in, off by default:** `sessions/` (transcripts) and `cron/` (job
-definitions), at the top level and inside each profile. They sync only when
-`sync_sessions` / `sync_cron` is enabled or `pull --sessions` / `--cron` is
-passed.
+**Session and cron content is opt-in, and the raw folders never travel.**
+The raw `sessions/` folders (top level and per profile) are ALWAYS local:
+they hold redacted request dumps, not transcripts. Real transcript history
+lives in the local `state.db` and is published only through the opt-in
+read-only session archive (`sync_sessions`, see the tiers above). Cron
+syncs only job definitions, only with `sync_cron` enabled; run output
+under `cron/output/` is machine-local. `hermes roam status` shows both
+opt-ins' on/off state on every device.
 
 **Ignored — never even listed:** `cache/`, `audio_cache/`, `image_cache/`,
 `logs/`, `backups/`, `bootstrap-cache/`, `checkpoints/`, `sandboxes/`,
@@ -372,9 +451,10 @@ do not use it as your real sync.
 - `hermes roam init [--create-remote]` — validate settings, ping the backend,
   create the generation-0 head on the first device, write local state.
 - `hermes roam status` — local and remote generation, remote-ahead flag,
-  local dirty count (what a push would carry), fleet size. When the backend
-  is unreachable it prints `roam: remote unreachable: <error>` and exits 1
-  instead of guessing.
+  local dirty count (what a push would carry), fleet size, and the on/off
+  state of every optional item (session archive publish, cron job
+  definitions). When the backend is unreachable it prints
+  `roam: remote unreachable: <error>` and exits 1 instead of guessing.
 - `hermes roam devices` — the roster of devices that ever pushed or pulled,
   with their last push/pull generations and Hermes versions.
 - `hermes roam diff` — pull preview: the added / changed / removed paths a
@@ -383,11 +463,19 @@ do not use it as your real sync.
   generation; refuses with exit 1 before `init` has written local state,
   refuses when the remote moved ahead (exit 2) unless forced. `--dry-run`
   lists the bundle's file paths (40-line cap) and total size.
-- `hermes roam pull [--apply] [--overwrite-conflicts] [--dry-run]
-  [--sessions] [--cron]` — download and verify; `--apply` performs the
-  journaled, backed-up install and lists every path it kept local
-  (conflicts and scope-kept paths) instead of silently dropping it;
-  `--overwrite-conflicts` takes the remote version of conflicting paths.
+- `hermes roam pull [--apply] [--overwrite-conflicts] [--dry-run] [--cron]`
+  — download and verify; `--apply` performs the journaled, backed-up
+  install and lists every path it kept local (conflicts and scope-kept
+  paths) instead of silently dropping it; `--overwrite-conflicts` takes
+  the remote version of conflicting paths. A pulled session archive always
+  lands read-only under `<home>/roam/session-archive/`; there is no
+  `--sessions` flag because reading a published archive needs no opt-in.
+- `hermes roam sessions [show DEVICE SESSION_ID]` — list the read-only
+  session archives this device pulled, per device and session with title,
+  date, and size; `show` prints one transcript on the terminal. Read-only:
+  archived sessions cannot be resumed, and a pulled archive is never
+  re-pushed. There is no agent tool form — transcripts are never
+  bulk-dumped into the model.
 - `hermes roam doctor` — the health checks above; non-zero exit on failure.
 - `hermes roam history [path] [--json]` — list every version the remote
   store still holds (newest generation first, 40-line cap in human output):
@@ -402,12 +490,16 @@ do not use it as your real sync.
   local change so the next push publishes it. There is no agent tool for
   this and no slash form: recovery is the user's decision on the terminal.
 - `hermes roam rules [--init]` — print the effective scope rules or write the
-  commented template.
+  commented template; the human output ends with the same three sync tiers
+  (always / optional / never) evaluated against this device's rules and
+  opt-ins.
 
 **Slash command** (short, Telegram-friendly output, no tables):
 `/roam status`, `/roam push`, `/roam pull`, `/roam pull apply` (the only
 form that writes), `/roam pull apply overwrite` (also overwrites
-conflicting paths), `/roam diff`, `/roam devices`, `/roam doctor`,
+conflicting paths), `/roam diff`, `/roam devices`, `/roam sessions`
+(read-only listing of pulled session archives — never a transcript body;
+printing one is the terminal command above), `/roam doctor`,
 `/roam history` (read-only summary of the first ten recoverable versions;
 restoring is a terminal command), `/roam help`. Extra words are validated
 before anything runs: `push` accepts only `force` and `dry`/`dry-run`,
@@ -474,19 +566,30 @@ backend choice (R2, S3, git, local), init, doctor, push, and pull.
   `config --get core.sshCommand`, `fetch`, `rev-parse`, `cat-file`,
   `hash-object`, `read-tree`, `update-index`, `write-tree`, `commit-tree`,
   `push` (with `--force-with-lease`), `show`, `ls-remote`, and `ls-tree`
-  (0.4 history/restore: listing the fetched tree). No other shell commands
-  are spawned anywhere in the plugin.
+  (0.4 history/restore: listing the fetched tree). With the session archive
+  opt-in enabled, a push additionally runs Hermes's own
+  `hermes sessions export <tmpdir> --format md --redact --after 2000-01-01
+  --force` as an argv subprocess (never a shell), with `HERMES_HOME` set to
+  the active home, stdin closed, and a hard timeout inside the operation
+  deadline (0.4.1). No other shell commands are spawned anywhere in the
+  plugin.
 - **Files read.** The Hermes home being synced, excluding everything
   classified local or ignored — in particular this plugin never reads
   `.env`, `auth.json`, or any other credential file; secrets come only
-  through Hermes's `agent.secret_scope.get_secret`.
+  through Hermes's `agent.secret_scope.get_secret`. With the session
+  archive opt-in enabled, the disclosed export subprocess additionally
+  reads this home's own session history (Hermes's `state.db`, via Hermes's
+  own export code) and the result is published as the capped read-only
+  archive; the raw `sessions/` request dumps are never read for a bundle.
 - **Files written.** Under `<home>/roam/`: `roam/state.json`,
   `roam/floor.json` (the rollback floor), `roam/last.roam` (the last synced
   bundle, kept for carry-forward), `roam/rules.yaml` (the per-device scope
   rules), `roam/lock` (the home lock), staging directories, the backup
-  directories and their install journals, and (git backend) the
-  `git-mirror` clone. Files elsewhere in the home are written only by
-  `pull --apply` / `roam_pull` with `apply=true`, after the backup copy.
+  directories and their install journals, (git backend) the `git-mirror`
+  clone, and — read-only, mode 0444 — `roam/session-archive/<device>/`
+  when a pull installs another device's published session archive (0.4.1).
+  Files elsewhere in the home are written only by `pull --apply` /
+  `roam_pull` with `apply=true`, after the backup copy.
 - **Background threads.** The session hooks above may start daemon threads.
   A watchdog logs an overrun at WARNING (120 s for the auto-push, 15 s for
   the start check) but cannot stop the thread; the work is bounded by the
@@ -515,7 +618,14 @@ backend choice (R2, S3, git, local), init, doctor, push, and pull.
 - **Secrets are not synced, by design.** Catalog rules require credentials
   to move only through Hermes's secret routes, so `.env` and `auth.json`
   stay per-machine; you recreate them on each device once.
-- **Sessions and cron are opt-in** and stay local unless you enable them.
+- **Session transcripts are never resumable and never silently synced.**
+  The raw `sessions/` folders never travel; transcript history is published
+  only as the opt-in, read-only, size-capped session archive, and a pulled
+  archive can only be read, never resumed or re-pushed. Hermes's export
+  `--redact` pass is best-effort: an archived transcript may still contain
+  anything you typed.
+- **Cron sync is definitions-only and opt-in.** Run output, locks, and
+  telemetry never travel.
 - **`config.yaml` comments are lost on merge.** The merge round-trips
   through PyYAML, which does not preserve comments; content and key order
   are preserved, comments are not.

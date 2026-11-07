@@ -20,7 +20,9 @@ from .tools import (
     safe_device_name,
     safe_error_text,
     safe_relpath,
+    safe_session_id,
     safe_status_error,
+    safe_title,
     sanitize_diff_dict,
     sanitize_history_list,
     sanitize_pull_dict,
@@ -83,14 +85,15 @@ def _json(value: object) -> None:
 
 
 def _classes(args: argparse.Namespace) -> object:
-    """Pull scope classes from --sessions/--cron; None keeps engine defaults."""
+    """Pull scope classes from --cron; None keeps engine defaults (0.4.1:
+    the read-only session archive is always among the defaults — reading
+    what another device published needs no opt-in — so there is no
+    --sessions flag anymore)."""
     model = roam_module("model")
-    picked = {model.Scope.SHARED}
-    if getattr(args, "sessions", False):
-        picked.add(model.Scope.SESSIONS)
+    picked = {model.Scope.SHARED, model.Scope.SESSIONS}
     if getattr(args, "cron", False):
         picked.add(model.Scope.CRON)
-    return None if picked == {model.Scope.SHARED} else picked
+    return None if picked == {model.Scope.SHARED, model.Scope.SESSIONS} else picked
 
 
 def add_cli_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
@@ -123,9 +126,20 @@ def add_cli_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
                       help="with --apply, also overwrite files changed here since "
                            "the last sync (a backup is kept)")
     pull.add_argument("--dry-run", action="store_true", help="verify without planning")
-    pull.add_argument("--sessions", action="store_true", help="include session transcripts")
-    pull.add_argument("--cron", action="store_true", help="include cron definitions")
+    pull.add_argument("--cron", action="store_true", help="include cron job definitions")
     pull.add_argument("--json", action="store_true", help="print machine-readable JSON")
+
+    sessions = subs.add_parser(
+        "sessions", help="list the read-only session archives this device pulled"
+    )
+    sessions.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    sessions_sub = sessions.add_subparsers(dest="sessions_action", metavar="action")
+    sessions_show = sessions_sub.add_parser(
+        "show", help="print one archived transcript (read-only)"
+    )
+    sessions_show.add_argument("device", help="the device that published the session")
+    sessions_show.add_argument("session_id", help="the session id to print")
+    sessions_show.add_argument("--json", action="store_true", help="print machine-readable JSON")
 
     doctor = subs.add_parser("doctor", help="run all sync health checks")
     doctor.add_argument("--json", action="store_true", help="print machine-readable JSON")
@@ -179,6 +193,8 @@ def _run(args: argparse.Namespace) -> int:
             return _cmd_rules(args, as_json)
         if args.command == "init":
             return _cmd_init(args, as_json)
+        if args.command == "sessions":
+            return _cmd_sessions(args, as_json)
         engine = settings.build_engine()
         return {
             "status": lambda: _cmd_status(engine, as_json),
@@ -220,6 +236,15 @@ def _cmd_status(engine, as_json: bool) -> int:
     local = status.local
     print(_row("device", status.device))
     print(_row("backend", status.backend))
+    opt_ins = getattr(status, "opt_ins", {}) or {}
+    print(_row(
+        "opt-ins",
+        "session archive (publish) "
+        + ("ON" if opt_ins.get("session_archive") else "off")
+        + f" (cap {int(opt_ins.get('session_archive_max_mb') or 0)} MB)"
+        + "; cron job definitions "
+        + ("ON" if opt_ins.get("cron_jobs") else "off"),
+    ))
     print(_row("pushed", f"generation {local.last_pushed_generation}"))
     print(_row("pulled", f"generation {local.last_pulled_generation}"))
     if status.remote_generation is None:
@@ -294,11 +319,14 @@ def _cmd_push(engine, args: argparse.Namespace, as_json: bool) -> int:
     recovered = getattr(result, "recovered", None)
     if recovered:
         print(f"roam: recovered: {recovered}")
+    notes = [f"roam: {_short(note)}" for note in getattr(result, "notes", []) or []]
     if result.skipped_reason:
         # An unchanged home skips before anything else — including on a dry
         # run, where the honest answer is the skip reason, not a would-push
         # summary of an empty bundle.
         print(f"roam: nothing to push ({result.skipped_reason})")
+        if notes:
+            print(*notes, sep="\n")
         return 0
     if result.dry_run:
         print(f"roam: dry run — would push {result.file_count} files, "
@@ -309,10 +337,14 @@ def _cmd_push(engine, args: argparse.Namespace, as_json: bool) -> int:
             print(*_cap([f"would push {path}" for path in files]), sep="\n")
         else:
             print("roam: this build cannot list file names; counts only")
+        if notes:
+            print(*notes, sep="\n")
         return 0
     print(f"roam: pushed generation {result.generation} "
           f"({result.file_count} files, {result.bundle_size} bytes)")
     print(f"roam: bundle {_short(result.bundle_key)}")
+    if notes:
+        print(*notes, sep="\n")
     return 0
 
 
@@ -478,6 +510,96 @@ def _cmd_restore(engine, args: argparse.Namespace, as_json: bool) -> int:
     return 0
 
 
+def _human_size(size: int) -> str:
+    value = float(size)
+    for unit in ("B", "kB", "MB", "GB"):
+        if value < 1024 or unit == "GB":
+            return f"{value:.1f} {unit}" if unit != "B" else f"{int(value)} B"
+        value /= 1024
+    return f"{size} B"
+
+
+def _sanitize_archive(devices: list) -> list:
+    """The read-only archive listing with every remote-sourced field
+    sanitized: device names and session ids charset-checked, titles
+    scrubbed to one line (0.4.1)."""
+    out: list = []
+    for device in devices or []:
+        if not isinstance(device, dict):
+            continue
+        sessions = []
+        for session in device.get("sessions") or []:
+            if not isinstance(session, dict):
+                continue
+            sessions.append(
+                {
+                    "session_id": safe_session_id(session.get("session_id", "")),
+                    "title": safe_title(session.get("title", "")),
+                    "date": safe_title(session.get("date", ""), 40),
+                    "size": int(session.get("size") or 0),
+                }
+            )
+        out.append({"device": safe_device_name(device.get("device", "")), "sessions": sessions})
+    return out
+
+
+def _cmd_sessions(args: argparse.Namespace, as_json: bool) -> int:
+    """Read-only listing/printing of the session archives this device PULLED.
+
+    The transcripts are remote-sourced text read back from disk: every
+    identifier is charset-checked, every title is scrubbed, and a printed
+    transcript goes through the block sanitizer. Nothing here can publish,
+    resume, or re-push an archived session.
+    """
+    archive = roam_module("session_archive")
+    home = settings.hermes_home()
+    if getattr(args, "sessions_action", None) == "show":
+        text, error = archive.read_local_session(home, args.device, args.session_id)
+        if error:
+            print(f"roam: {error}")
+            return 1
+        textsafe = roam_module("textsafe")
+        if as_json:
+            _json(
+                {
+                    "device": safe_device_name(args.device),
+                    "session_id": safe_session_id(args.session_id),
+                    "note": archive.local_archive_note(),
+                    "transcript": textsafe.clean_block(text),
+                }
+            )
+            return 0
+        print(textsafe.clean_block(text))
+        print(f"roam: {archive.local_archive_note()}")
+        return 0
+    devices = _sanitize_archive(archive.list_local_archive(home))
+    if as_json:
+        _json({"note": archive.local_archive_note(), "devices": devices})
+        return 0
+    if not devices:
+        print("roam: no pulled session archives on this device")
+        print("roam: a device that enables sync_sessions publishes its transcripts; "
+              "run `hermes roam pull --apply` to receive them")
+        return 0
+    print("roam: pulled session archives (read-only)")
+    lines: list[str] = []
+    for device in devices:
+        total = sum(session["size"] for session in device["sessions"])
+        lines.append(
+            f"{device['device']}: {len(device['sessions'])} session(s), "
+            f"{_human_size(total)} total"
+        )
+        for session in device["sessions"]:
+            lines.append(
+                f"  {session['session_id']}  {session['date'] or 'date unknown'}  "
+                f"{_human_size(session['size'])}  {session['title'] or '(no title)'}"
+            )
+    print(*_cap(lines), sep="\n")
+    print("roam: print one with `hermes roam sessions show <device> <session_id>`")
+    print(f"roam: {archive.local_archive_note()}")
+    return 0
+
+
 def _cmd_init(args: argparse.Namespace, as_json: bool) -> int:
     engine = settings.build_engine()
     summary = engine.init(create_remote=args.create_remote)
@@ -533,5 +655,25 @@ def _cmd_rules(args: argparse.Namespace, as_json: bool) -> int:
     )
     lines.append("host keys kept local on pull:")
     lines.extend(f"{'keep':<8} {key}" for key in host_keys)
+    # 0.4.1: the three sync tiers, stated at the rules surface too. The
+    # opt-in state is best-effort here: this surface must still render when
+    # settings cannot be loaded.
+    try:
+        opt = settings.load_settings()
+        sess = str(bool(opt.sync_sessions)).lower()
+        cron = str(bool(opt.sync_cron)).lower()
+    except Exception:  # noqa: BLE001 - the rules listing must never fail
+        sess = cron = "unknown"
+    lines.extend([
+        "",
+        "what syncs (tiers):",
+        "always:   skills/, memories/, SOUL.md, plugin code, config.yaml "
+        "(host-specific keys kept local), and the stripped rules.yaml",
+        f"optional: session archive publish (sync_sessions={sess}; opt-in per device) and "
+        f"cron job definitions (sync_cron={cron}); hooks only via rules.yaml",
+        "never:    secrets/.env/auth.json, the live state.db session database, "
+        "raw sessions/ request dumps, caches/logs, host-specific config keys, "
+        "hub-installed skills, and pulled read-only session archives",
+    ])
     print(*_cap(lines), sep="\n")
     return 0

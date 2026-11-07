@@ -227,8 +227,10 @@ def test_tool_pull_defaults_and_classes(plugin, fake_engine):
     assert out["pull"]["applied"] is False
     assert fake_engine.calls == [full_pull_call(apply=False)]
     out = json.loads(plugin.tools.roam_pull({"classes": ["shared", "cron"]}))
+    # 0.4.1: SESSIONS is always part of the selection — reading another
+    # device's published archive needs no opt-in
     assert fake_engine.calls[-1] == full_pull_call(
-        apply=False, classes={model.Scope.SHARED, model.Scope.CRON}
+        apply=False, classes={model.Scope.SHARED, model.Scope.SESSIONS, model.Scope.CRON}
     )
 
 
@@ -299,10 +301,16 @@ def full_pull_call(*, apply: bool, classes=None, overwrite_conflicts: bool = Fal
 def test_cli_parser_builds(plugin):
     args = cli_args(plugin, "status", "--json")
     assert args.command == "status" and args.json is True
-    args = cli_args(plugin, "pull", "--apply", "--sessions", "--cron")
-    assert (args.apply, args.sessions, args.cron) == (True, True, True)
+    # 0.4.1: --sessions is gone — reading a pulled archive needs no opt-in,
+    # so the archive is always among the pull defaults
+    args = cli_args(plugin, "pull", "--apply", "--cron")
+    assert (args.apply, args.cron) == (True, True)
     args = cli_args(plugin, "push", "--force", "--dry-run")
     assert (args.force, args.dry_run) == (True, True)
+    args = cli_args(plugin, "sessions")
+    assert args.command == "sessions"
+    args = cli_args(plugin, "sessions", "show", "dev-a", "sess-1")
+    assert (args.sessions_action, args.device, args.session_id) == ("show", "dev-a", "sess-1")
 
 
 def test_cli_status_json(plugin, fake_engine, capsys):
@@ -500,9 +508,12 @@ def test_cli_error_exit_code_1(plugin, capsys):
 
 
 def test_cli_pull_flag_mapping(plugin, fake_engine):
-    plugin.cli.handler(cli_args(plugin, "pull", "--apply", "--sessions", "--cron"))
+    # 0.4.1: --sessions is gone — the pulled archive is always among the
+    # pull defaults; only cron remains an explicit flag
+    plugin.cli.handler(cli_args(plugin, "pull", "--apply", "--cron"))
     assert fake_engine.calls[-1] == full_pull_call(
-        apply=True, classes={model.Scope.SHARED, model.Scope.SESSIONS, model.Scope.CRON}
+        apply=True,
+        classes={model.Scope.SHARED, model.Scope.SESSIONS, model.Scope.CRON},
     )
     plugin.cli.handler(cli_args(plugin, "pull"))
     assert fake_engine.calls[-1] == full_pull_call(apply=False)

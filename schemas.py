@@ -90,7 +90,10 @@ ROAM_PULL = {
                 "items": {"type": "string", "enum": ["shared", "sessions", "cron"]},
                 "description": (
                     "Scope classes to include: shared (default), sessions, "
-                    "cron. Sessions and cron are opt-in and usually stay local."
+                    "cron. Read-only session archives are ALWAYS included "
+                    "(they land read-only under roam/session-archive/ and are "
+                    "never re-pushed); cron job definitions need the cron "
+                    "entry or the puller's own sync_cron opt-in."
                 ),
             },
             "dry_run": {

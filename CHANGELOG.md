@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.4.1 — 2026-11-07
+
+Session history becomes an opt-in, default-OFF, READ-ONLY archive, and
+"what syncs" is stated up front everywhere.
+
+- The raw `sessions/` folders (top level and per profile) are ALWAYS
+  LOCAL: in Hermes 0.22.5 they are `agent.logs_dir` — redacted
+  `request_dump_*.json` debug files plus rare fallback shards — never real
+  transcript history, which lives in the local `state.db`. Request dumps
+  never travel; regression tests pin the classification.
+- `sync_sessions` (same key, default false, new meaning) publishes a
+  READ-ONLY archive of this device's session transcripts: a push exports
+  the home's sessions with Hermes's own documented CLI (`hermes sessions
+  export --format md --redact`, argv subprocess, `HERMES_HOME` set, stdin
+  closed, hard timeout inside the operation deadline, no prompts) into the
+  bundle-only per-device namespace `archive/sessions/<device>/`, capped by
+  the new `sessions_max_mb` setting (default 50 MB, NEWEST transcripts
+  first). A device can only ever replace its OWN namespace; other
+  devices' namespaces are carried forward byte-identical. A failed export
+  degrades to a clear notice — everything else still syncs and the
+  previously published archive is kept; turning the opt-in off unpublishes
+  only this device's namespace.
+- Reading needs no opt-in: pulls install published archives READ-ONLY
+  (mode 0444) under `<home>/roam/session-archive/<device>/`, which is
+  LOCAL, so a received archive can never be re-pushed; archived sessions
+  can never be resumed; `hermes roam restore` refuses archive paths and
+  history never lists them. `hermes roam sessions` lists devices and
+  sessions (title/date/size, sanitized) and `hermes roam sessions show
+  DEVICE SESSION_ID` prints one transcript on the terminal through the
+  roam sanitizers; `/roam sessions` is the read-only listing form. There
+  is deliberately NO agent tool for transcripts — nothing bulk-dumps
+  session content into the model.
+- `sync_cron` now syncs ONLY job definitions (`cron/jobs.json`, top level
+  and per profile); run output under `cron/output/`, locks, and telemetry
+  stamps are machine-local.
+- What syncs is now obvious: the README opens with the three tiers
+  (always / optional with the exact `hermes config set` commands / never),
+  `hermes roam status` and `--json` show the optional items' on/off state,
+  `hermes roam rules` prints the tiers, and every surface discloses the
+  opt-in state. Honest limit, stated plainly: transcripts travel
+  encrypted, but Hermes's `--redact` pass is best-effort — an archived
+  transcript may still contain anything you typed.
+
 ## 0.4.0 — 2026-11-06
 
 Round-4: every version ever pushed is recoverable, and the convergence

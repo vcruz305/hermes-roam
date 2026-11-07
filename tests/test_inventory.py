@@ -65,9 +65,12 @@ TABLE: list[tuple[str, Scope]] = [
     ("reports/x", Scope.IGNORED),
     ("profile-archives/x", Scope.IGNORED),
     ("cache/", Scope.IGNORED),
-    ("sessions/a.jsonl", Scope.SESSIONS),
-    ("profiles/work/sessions/a.jsonl", Scope.SESSIONS),
-    ("sessions/", Scope.SESSIONS),
+    # 0.4.1 regression: the raw sessions/ folder is agent.logs_dir — redacted
+    # request_dump_*.json debug files (and rare fallback shards), never real
+    # transcript history — so it is ALWAYS LOCAL: request dumps never travel.
+    ("sessions/a.jsonl", Scope.LOCAL),
+    ("profiles/work/sessions/a.jsonl", Scope.LOCAL),
+    ("sessions/", Scope.LOCAL),
     ("cron/jobs.json", Scope.CRON),
     ("profiles/work/cron/jobs.json", Scope.CRON),
     ("config.yaml", Scope.SHARED),
@@ -173,7 +176,7 @@ SHARED_EXPECTED = [
     "skills/x/run.sh",
 ]
 
-OPTED_IN_EXTRA = ["cron/jobs.json", "sessions/a.jsonl"]
+OPTED_IN_EXTRA = ["cron/jobs.json"]
 
 
 def test_walk_shared_only(tmp_path: Path) -> None:
@@ -207,6 +210,11 @@ def test_walk_sessions_and_cron_are_opt_in(tmp_path: Path) -> None:
         home, RULES, include={Scope.SHARED, Scope.SESSIONS, Scope.CRON}
     )
     assert [entry.relpath for entry in entries] == sorted(SHARED_EXPECTED + OPTED_IN_EXTRA)
+    # 0.4.1 regression: even with SESSIONS in the include set, the raw
+    # sessions/ folder never walks — request dumps are ALWAYS LOCAL and the
+    # opt-in archive is generated bundle members, not walked home files.
+    relpaths = [entry.relpath for entry in entries]
+    assert "sessions/a.jsonl" not in relpaths
 
 
 def test_walk_is_deterministic(tmp_path: Path) -> None:

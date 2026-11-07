@@ -155,6 +155,12 @@ def load_settings() -> Any:
         values["device_name"] = socket.gethostname().split(".")[0] or "device"
     values["push_debounce_seconds"] = max(0, values["push_debounce_seconds"])
     values["max_bundle_bytes"] = max(1, values["max_bundle_bytes"])
+    # 0.4.1: the session archive cap (newest transcripts first). A zero or
+    # negative cap would disable the cap, not the archive, so it reverts to
+    # the ruled default.
+    values["sessions_max_mb"] = max(
+        1, _as_int(values["sessions_max_mb"], model.RoamSettings().sessions_max_mb)
+    )
     archive_raw = _get_secret(model.SECRET_ARCHIVE_KEY)
     if not archive_raw:
         raise errors.ConfigError(

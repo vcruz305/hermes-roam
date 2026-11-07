@@ -1,6 +1,6 @@
 # hermes-roam plugin manifest (Hermes plugin format, manifest v2)
 name: hermes-roam
-version: 0.4.0
+version: 0.4.1
 manifest_version: 2
 description: >-
   Encrypted, host-scoped sync of the Hermes Agent home across devices.
@@ -87,11 +87,23 @@ config_schema:
     type: bool
     default: false
     description: >-
-      Include session transcripts in pushes (they grow large; opt-in).
+      Publish a READ-ONLY archive of this device's session transcripts
+      (exported by Hermes's own `hermes sessions export` into the bundle's
+      per-device namespace, capped by sessions_max_mb, newest first). The
+      raw sessions/ folder never travels; other devices can read the
+      archive but never resume or re-push it.
+  sessions_max_mb:
+    type: int
+    default: 50
+    description: >-
+      Size cap in MB for this device's published session archive; the
+      newest transcripts are kept first.
   sync_cron:
     type: bool
     default: false
-    description: Include cron job definitions in pushes (opt-in).
+    description: >-
+      Include cron job definitions (cron/jobs.json only — never run output)
+      in pushes (opt-in).
   auto_push:
     type: bool
     default: false
