@@ -91,7 +91,11 @@ the defaults are an ALLOWLIST — an unknown file can never leak into a bundle.
   `shared:` entry in `roam/rules.yaml`. Hooks are executable code, so opting
   in means choosing to run the other machine's code.
 
-**Never synced (no setting can make them travel):**
+**Never synced (no opt-in setting can make them travel):**
+
+The only lever that can ever extend the allowlist is an explicit per-device
+`shared:` rule in `roam/rules.yaml` (that is the hooks opt-in above); the
+`<home>/roam/` tree is pinned against even that.
 
 - Secrets: `.env`, `auth.json`, `auth.json.*`, and every other credential
   file.
@@ -109,10 +113,14 @@ the defaults are an ALLOWLIST — an unknown file can never leak into a bundle.
   an absolute path under a user home directory.
 - Hub-installed skills (they are reproducible from the hub; your own
   written skills keep syncing).
-- Plugin code trees under `plugins/`, `hooks/`, `tui-widgets/`,
-  `desktop-plugins/`, `pets/`, and everything else under `<home>/roam/`
-  (sync state, backups, journals — and pulled, read-only session archives).
-- `roam/rules.yaml` — per-device policy; each device's rules are its own.
+- Plugin code trees under `plugins/`, `tui-widgets/`, `desktop-plugins/`,
+  and `pets/` — only the pinned name-and-sha list above ever travels, never
+  code. `hooks/` is the documented exception in the optional tier: it syncs
+  only when a device opts in with an explicit `shared:` rule.
+- Everything under `<home>/roam/` — sync state, backups, journals, mirrors,
+  `roam/rules.yaml` itself (per-device policy; each device's rules are its
+  own), and pulled, read-only session archives. This tree is hard-pinned
+  local: no rule or setting can ever make it travel.
 
 `hermes roam status` shows the on/off state of every optional item;
 `hermes roam rules` prints the same three tiers against this device's

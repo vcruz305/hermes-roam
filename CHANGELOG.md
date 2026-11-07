@@ -42,6 +42,22 @@ Session history becomes an opt-in, default-OFF, READ-ONLY archive, and
   opt-in state. Honest limit, stated plainly: transcripts travel
   encrypted, but Hermes's `--redact` pass is best-effort — an archived
   transcript may still contain anything you typed.
+- Tier-audit fix: the `roam rules` tier summary claimed "plugin code" and
+  "the stripped rules.yaml" always sync — wrong on both counts (only the
+  pinned plugin name-and-sha list travels, and `roam/rules.yaml` never
+  travels at all); the README never-tier listed `hooks/` as unsyncable
+  while the optional tier (and the code) allow the per-device `shared:`
+  opt-in. Both now state the real contract, pinned by tests, and the
+  never-tier names the only allowlist-extension lever and the hard
+  `<home>/roam/` pin.
+- Live two-home proof (docs/session-archive-proof.log): real Hermes 0.22.5,
+  local backend, no network — sessions created with `hermes sessions
+  import`, the opted-in device publishes, the peer pulls the archive
+  read-only (0444) and lists/prints it, a device without the opt-in never
+  publishes its own sessions (checked against the signed head manifest),
+  a fresh pair with the opt-in off travels nothing session-related, and
+  `roam status` shows every opt-in. The same flow is stage 4 of
+  scripts/demo-two-homes.sh.
 
 ## 0.4.0 — 2026-11-06
 

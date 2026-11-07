@@ -588,6 +588,18 @@ def test_cli_rules_renders_real_rules_object(plugin, monkeypatch, tmp_path, caps
     assert "effective scope rules" in out
     assert "host keys kept local on pull" in out
     assert "hermes roam rules --json" in out
+    # 0.4.1: the tier summary must state the real contract — plugin code and
+    # roam/rules.yaml NEVER travel (only the pinned plugin name-and-sha list
+    # does), and the roam/ tree is the hard local pin.
+    assert "never plugin code" in out
+    assert "roam/installed-plugins.json" in out
+    assert "plugin code trees, roam/rules.yaml itself" in out
+    assert "everything under <home>/roam/" in out
+    assert "stripped rules.yaml" not in out
+    # the opt-in state renders best-effort (unknown outside a real session)
+    assert "sync_sessions=" in out
+    assert "sync_cron=" in out
+    assert "opt-in per device" in out
     # user rules take precedence and are shown in full
     rules_dir = tmp_path / "roam"
     rules_dir.mkdir()

@@ -1,0 +1,468 @@
+# hermes-roam 0.4.1 — live two-home session-archive proof (sanitized transcript)
+#
+# Real Hermes 0.22.5 (CLI on PATH), local-directory backend, no network.
+# Homes: /root/work/roam-homes/sess-a (device proof-a), sess-b (proof-b),
+# sess-c (proof-c), sess-d (proof-d); stores sess-store / sess-store2.
+# Sessions were created with Hermes's own `hermes sessions import` from
+# small synthetic Claude Code JSONL fixtures. The imported conversation rows
+# are end-stamped directly in the fixture homes (the same `cli_close` stamp a
+# real CLI conversation gets at shutdown): Hermes only end-stamps rows it
+# owned in-process, and the md bulk export only ever matches ended sessions,
+# so a network-free fixture needs that one completion stamp. Everything
+# else — plugin install, push, pull, listing, printing, status — ran for
+# real. Archive key values are redacted. Exit code: 0 (every check passed).
+#
+# Verdict lines: 'verified:' marks an assertion that passed.
+
+
+=== stage 0 — fresh proof homes (local-directory backend, no network) ===
+homes created (archive keys are redacted from this transcript)
+
+=== stage 0 — install the real plugin (checkout HEAD ae0485b) into every home ===
+
+$ HERMES_HOME=/root/work/roam-homes/sess-a hermes plugins install file:///root/work/hermes-roam --yes-deps --enable
+hermes: preparing dependencies for this data root (the checkout's updates belong to /root/.hermes)...
+Preparing the isolated Hermes runtime…
+  → Installing Python dependencies…
+  ✓ Installing Python dependencies
+  → Installing Python dependencies…
+  ✓ Installing Python dependencies
+Warning: custom (unreviewed) source — not from the Hermes catalog.
+Warning: Using insecure/local URL scheme. Consider using https:// or git@ for
+production installs.
+Cloning file:///root/work/hermes-roam...
+
+hermes-roam declares Python dependencies:
+  - cryptography>=42,<51
+  - pyyaml>=6.0,<7
+  - boto3>=1.34,<2
+Consent given up front — preparing them without prompting.
+
+╭─────────────────────── ✓ Installed ────────────────────────╮
+│ Plugin installed: file:///root/work/hermes-roam            │
+│ Location: /root/work/roam-homes/sess-a/plugins/hermes-roam │
+╰────────────────────────────────────────────────────────────╯
+
+  → Resolving Python dependencies…
+  ✓ Resolving Python dependencies
+  → Installing Python dependencies…
+  ✓ Installing Python dependencies
+✓ Plugin hermes-roam enabled.
+
+$ HERMES_HOME=/root/work/roam-homes/sess-a hermes plugins enable hermes-roam
+Plugin 'hermes-roam' is already enabled.
+
+$ HERMES_HOME=/root/work/roam-homes/sess-b hermes plugins install file:///root/work/hermes-roam --yes-deps --enable
+hermes: preparing dependencies for this data root (the checkout's updates belong to /root/.hermes)...
+Preparing the isolated Hermes runtime…
+  → Installing Python dependencies…
+  ✓ Installing Python dependencies
+  → Installing Python dependencies…
+  ✓ Installing Python dependencies
+Warning: custom (unreviewed) source — not from the Hermes catalog.
+Warning: Using insecure/local URL scheme. Consider using https:// or git@ for
+production installs.
+Cloning file:///root/work/hermes-roam...
+
+hermes-roam declares Python dependencies:
+  - cryptography>=42,<51
+  - pyyaml>=6.0,<7
+  - boto3>=1.34,<2
+Consent given up front — preparing them without prompting.
+
+╭─────────────────────── ✓ Installed ────────────────────────╮
+│ Plugin installed: file:///root/work/hermes-roam            │
+│ Location: /root/work/roam-homes/sess-b/plugins/hermes-roam │
+╰────────────────────────────────────────────────────────────╯
+
+  → Resolving Python dependencies…
+  ✓ Resolving Python dependencies
+  → Installing Python dependencies…
+  ✓ Installing Python dependencies
+✓ Plugin hermes-roam enabled.
+
+$ HERMES_HOME=/root/work/roam-homes/sess-b hermes plugins enable hermes-roam
+Plugin 'hermes-roam' is already enabled.
+
+$ HERMES_HOME=/root/work/roam-homes/sess-c hermes plugins install file:///root/work/hermes-roam --yes-deps --enable
+hermes: preparing dependencies for this data root (the checkout's updates belong to /root/.hermes)...
+Preparing the isolated Hermes runtime…
+  → Installing Python dependencies…
+  ✓ Installing Python dependencies
+  → Installing Python dependencies…
+  ✓ Installing Python dependencies
+Warning: custom (unreviewed) source — not from the Hermes catalog.
+Warning: Using insecure/local URL scheme. Consider using https:// or git@ for
+production installs.
+Cloning file:///root/work/hermes-roam...
+
+hermes-roam declares Python dependencies:
+  - cryptography>=42,<51
+  - pyyaml>=6.0,<7
+  - boto3>=1.34,<2
+Consent given up front — preparing them without prompting.
+
+╭─────────────────────── ✓ Installed ────────────────────────╮
+│ Plugin installed: file:///root/work/hermes-roam            │
+│ Location: /root/work/roam-homes/sess-c/plugins/hermes-roam │
+╰────────────────────────────────────────────────────────────╯
+
+  → Resolving Python dependencies…
+  ✓ Resolving Python dependencies
+  → Installing Python dependencies…
+  ✓ Installing Python dependencies
+✓ Plugin hermes-roam enabled.
+
+$ HERMES_HOME=/root/work/roam-homes/sess-c hermes plugins enable hermes-roam
+Plugin 'hermes-roam' is already enabled.
+
+$ HERMES_HOME=/root/work/roam-homes/sess-d hermes plugins install file:///root/work/hermes-roam --yes-deps --enable
+hermes: preparing dependencies for this data root (the checkout's updates belong to /root/.hermes)...
+Preparing the isolated Hermes runtime…
+  → Installing Python dependencies…
+  ✓ Installing Python dependencies
+  → Installing Python dependencies…
+  ✓ Installing Python dependencies
+Warning: custom (unreviewed) source — not from the Hermes catalog.
+Warning: Using insecure/local URL scheme. Consider using https:// or git@ for
+production installs.
+Cloning file:///root/work/hermes-roam...
+
+hermes-roam declares Python dependencies:
+  - cryptography>=42,<51
+  - pyyaml>=6.0,<7
+  - boto3>=1.34,<2
+Consent given up front — preparing them without prompting.
+
+╭─────────────────────── ✓ Installed ────────────────────────╮
+│ Plugin installed: file:///root/work/hermes-roam            │
+│ Location: /root/work/roam-homes/sess-d/plugins/hermes-roam │
+╰────────────────────────────────────────────────────────────╯
+
+  → Resolving Python dependencies…
+  ✓ Resolving Python dependencies
+  → Installing Python dependencies…
+  ✓ Installing Python dependencies
+✓ Plugin hermes-roam enabled.
+
+$ HERMES_HOME=/root/work/roam-homes/sess-d hermes plugins enable hermes-roam
+Plugin 'hermes-roam' is already enabled.
+plugin installed and enabled in all four proof homes
+
+=== stage 1 — home A: real sessions via hermes sessions import (no network) ===
+
+$ HERMES_HOME=/root/work/roam-homes/sess-a hermes sessions import --from claude /root/work/roam-homes/sess-a/fixture-1.jsonl
+✓ Imported Claude Code session as 20261107_011047_d4033c
+  Continue it with:  hermes --resume 20261107_011047_d4033c
+
+$ HERMES_HOME=/root/work/roam-homes/sess-a hermes sessions import --from claude /root/work/roam-homes/sess-a/fixture-2.jsonl
+✓ Imported Claude Code session as 20261107_011049_f26827
+  Continue it with:  hermes --resume 20261107_011049_f26827
+imported session ids: 20261107_011047_d4033c 20261107_011049_f26827
+
+$ HERMES_HOME=/root/work/roam-homes/sess-a hermes sessions list
+Title                        Workspace          Last Active   ID
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Imported from Claude Code:   work               just now      20261107_011049_f26827
+Imported from Claude Code:   work               just now      20261107_011047_d4033c
+verified: hermes sessions list in A shows the imported sessions
+
+=== stage 1 — home A opts in (sync_sessions) and pushes ===
+
+$ HERMES_HOME=/root/work/roam-homes/sess-a hermes config set plugins.entries.hermes-roam.settings.backend local
+✓ Set plugins.entries.hermes-roam.settings.backend = local in /root/work/roam-homes/sess-a/config.yaml
+
+$ HERMES_HOME=/root/work/roam-homes/sess-a hermes config set plugins.entries.hermes-roam.settings.local_dir /root/work/roam-homes/sess-store
+✓ Set plugins.entries.hermes-roam.settings.local_dir = /root/work/roam-homes/sess-store in /root/work/roam-homes/sess-a/config.yaml
+
+$ HERMES_HOME=/root/work/roam-homes/sess-a hermes config set plugins.entries.hermes-roam.settings.device_name proof-a
+✓ Set plugins.entries.hermes-roam.settings.device_name = proof-a in /root/work/roam-homes/sess-a/config.yaml
+
+$ HERMES_HOME=/root/work/roam-homes/sess-a hermes config set plugins.entries.hermes-roam.settings.sync_sessions true
+✓ Set plugins.entries.hermes-roam.settings.sync_sessions = True in /root/work/roam-homes/sess-a/config.yaml
+
+$ HERMES_HOME=/root/work/roam-homes/sess-a hermes roam init --create-remote
+roam: created the generation-0 remote head on the local backend and registered device 'proof-a'
+roam: next steps:
+  1. put ROAM_ARCHIVE_KEY in the active home's <home>/.env (same value on every device)
+  2. backend s3 also needs ROAM_S3_ACCESS_KEY_ID and ROAM_S3_SECRET_ACCESS_KEY in <home>/.env
+  3. run `hermes roam doctor`
+  4. run `hermes roam push`
+  5. on the second device: `hermes roam pull`, review, then `hermes roam pull --apply`
+roam: never paste secret values into chat or files roam writes
+verified: roam init --create-remote created the local-directory remote store
+
+$ HERMES_HOME=/root/work/roam-homes/sess-a hermes roam push
+roam: pushed generation 1 (6 files, 2889 bytes)
+roam: bundle bundles/000001-proof-a-a1f5a60c2739.roam
+roam: published 2 session transcript(s) in this device's read-only archive namespace (archive/sessions/proof-a/)
+verified: A's opted-in push published both session transcripts in its archive namespace
+verified: the push names the read-only archive namespace archive/sessions/proof-a/
+
+=== stage 1 — home B pulls and reads the read-only archive ===
+
+$ HERMES_HOME=/root/work/roam-homes/sess-b hermes config set plugins.entries.hermes-roam.settings.backend local
+✓ Set plugins.entries.hermes-roam.settings.backend = local in /root/work/roam-homes/sess-b/config.yaml
+
+$ HERMES_HOME=/root/work/roam-homes/sess-b hermes config set plugins.entries.hermes-roam.settings.local_dir /root/work/roam-homes/sess-store
+✓ Set plugins.entries.hermes-roam.settings.local_dir = /root/work/roam-homes/sess-store in /root/work/roam-homes/sess-b/config.yaml
+
+$ HERMES_HOME=/root/work/roam-homes/sess-b hermes config set plugins.entries.hermes-roam.settings.device_name proof-b
+✓ Set plugins.entries.hermes-roam.settings.device_name = proof-b in /root/work/roam-homes/sess-b/config.yaml
+
+$ HERMES_HOME=/root/work/roam-homes/sess-b hermes roam init
+roam: connected to the local backend (local backend ready: /root/work/roam-homes/sess-store (44723 MiB free)); the remote head is at generation 1, last pushed by 'proof-a'; pull before pushing anything
+roam: next steps:
+  1. put ROAM_ARCHIVE_KEY in the active home's <home>/.env (same value on every device)
+  2. backend s3 also needs ROAM_S3_ACCESS_KEY_ID and ROAM_S3_SECRET_ACCESS_KEY in <home>/.env
+  3. run `hermes roam doctor`
+  4. run `hermes roam push`
+  5. on the second device: `hermes roam pull`, review, then `hermes roam pull --apply`
+roam: never paste secret values into chat or files roam writes
+
+$ HERMES_HOME=/root/work/roam-homes/sess-b hermes roam pull --apply
+roam: installed remote generation 1
+backup       /root/work/roam-homes/sess-b/roam/backups/20261107-091108
+roam: 2 file(s) kept local (changed here since last sync):
+kept local (changed here since last sync): SOUL.md
+kept local (changed here since last sync): memories/MEMORY.md
+roam: run `hermes roam pull --apply --overwrite-conflicts` to overwrite them (a backup is kept)
+roam: 1 remote file(s) kept local by your scope rules:
+kept local by your scope rules: roam/installed-plugins.json
+roam: 1 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 2 session archive member(s) land READ-ONLY under <home>/roam/session-archive/<device>/ — never in the home tree, never re-pushable, never resumable; list them …
+roam: 2 path(s) changed locally since the last sync and remotely at the same time (conflicts) were kept local: SOUL.md, memories/MEMORY.md; resolve by pushing (this …
+roam: 1 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 2 file(s) written, 0 deleted
+verified: B's pull installed the remote generation
+verified: the pull reports the read-only archive install under roam/session-archive/
+
+$ HERMES_HOME=/root/work/roam-homes/sess-b hermes roam sessions
+roam: pulled session archives (read-only)
+proof-a: 2 session(s), 2.1 kB total
+  20261107_011047_d4033c  2026-11-07T09:10:47.793511Z  1.1 kB  Imported from Claude Code: session archive proof 1: alpha transcript one
+  20261107_011049_f26827  2026-11-07T09:10:49.316327Z  1.1 kB  Imported from Claude Code: session archive proof 2: alpha transcript two
+roam: print one with `hermes roam sessions show <device> <session_id>`
+roam: archived sessions are read-only: they cannot be resumed, are never re-pushed, and live under <home>/roam/session-archive/
+verified: hermes roam sessions on B lists A's session
+verified: the listing shows device proof-a with both sessions
+
+$ HERMES_HOME=/root/work/roam-homes/sess-b hermes roam sessions show proof-a 20261107_011047_d4033c
+---
+session_id: "20261107_011047_d4033c"
+title: "Imported from Claude Code: session archive proof 1: alpha transcript one"
+source: "claude-code"
+created_at: "2026-11-07T09:10:47.793511Z"
+updated_at: ""
+ended_at: "2026-11-07T09:10:49.700125Z"
+model: null
+provider: null
+cwd: "/root/work"
+archived: false
+message_count: 2
+tool_call_count: 0
+format: "md"
+exported_at: "2026-11-07T09:11:01.072981Z"
+exporter: "hermes sessions export (md/qmd) v1"
+---
+
+# Imported from Claude Code: session archive proof 1: alpha transcript one
+
+Session ID: `20261107_011047_d4033c`
+
+Source: `claude-code`
+
+Working directory: `/root/work`
+
+## Messages
+
+### User — 2026-11-07T09:10:47.795229Z
+
+session archive proof 1: alpha transcript one
+
+### Assistant — 2026-11-07T09:10:47.871097Z
+
+assistant reply 1: alpha transcript one
+
+## Export verification
+
+- Session id: `20261107_011047_d4033c`
+- Exported messages: `2`
+- Source DB message count at export: `2`
+- Exported at: `2026-11-07T09:11:01.072981Z`
+- SHA256 of exported body: `9ee1c79d3bcc0cdc7c44e29756827df37d509654e24d6bd9da50f7f03330b616`
+
+roam: archived sessions are read-only: they cannot be resumed, are never re-pushed, and live under <home>/roam/session-archive/
+verified: hermes roam sessions show prints the archived transcript
+verified: the printed transcript carries the read-only note
+444
+444
+verified: both transcripts land mode 0444 under B's roam/session-archive/proof-a/
+
+=== stage 2 — B's own sessions are NOT published without B's opt-in ===
+
+$ HERMES_HOME=/root/work/roam-homes/sess-b hermes sessions import --from claude /root/work/roam-homes/sess-b/fixture-3.jsonl
+✓ Imported Claude Code session as 20261107_011113_8637ef
+  Continue it with:  hermes --resume 20261107_011113_8637ef
+B imported its own session: 20261107_011113_8637ef (sync_sessions still off on B)
+
+$ HERMES_HOME=/root/work/roam-homes/sess-b hermes roam push
+roam: pushed generation 2 (7 files, 3182 bytes)
+roam: bundle bundles/000002-proof-b-60683c1bef0c.roam
+verified: B's shared-change push created a new generation
+verified: B's push published NO session archive (opt-in off)
+signed HEAD manifest: 7 path(s), 2 session-archive path(s)
+  archive/sessions/proof-a/20261107_011047_d4033c-imported-from-claude-code-session-archive-proof-1-alpha-tran.md
+  archive/sessions/proof-a/20261107_011049_f26827-imported-from-claude-code-session-archive-proof-2-alpha-tran.md
+archive namespaces: ['proof-a']
+verified: the signed bundle manifest carries only A's namespace; B's own session stayed local
+
+=== stage 2 — B opts in: its session now publishes; A pulls and reads it ===
+
+$ HERMES_HOME=/root/work/roam-homes/sess-b hermes config set plugins.entries.hermes-roam.settings.sync_sessions true
+✓ Set plugins.entries.hermes-roam.settings.sync_sessions = True in /root/work/roam-homes/sess-b/config.yaml
+
+$ HERMES_HOME=/root/work/roam-homes/sess-b hermes roam push
+roam: pushed generation 3 (8 files, 3985 bytes)
+roam: bundle bundles/000003-proof-b-68c8f5a2238b.roam
+roam: published 1 session transcript(s) in this device's read-only archive namespace (archive/sessions/proof-b/)
+verified: B's opted-in push published its own session transcript
+
+$ HERMES_HOME=/root/work/roam-homes/sess-a hermes roam pull --apply
+roam: installed remote generation 3
+backup       /root/work/roam-homes/sess-a/roam/backups/20261107-091122
+roam: 1 remote file(s) kept local by your scope rules:
+kept local by your scope rules: roam/installed-plugins.json
+roam: roam/session-archive/proof-a/20261107_011047_d4033c-imported-from-claude-code-session-archive-proof-1-alpha-tran.md: deleted locally since the last sync; kept …
+roam: roam/session-archive/proof-a/20261107_011049_f26827-imported-from-claude-code-session-archive-proof-2-alpha-tran.md: deleted locally since the last sync; kept …
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 3 session archive member(s) land READ-ONLY under <home>/roam/session-archive/<device>/ — never in the home tree, never re-pushable, never resumable; list them …
+roam: 1 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 4 file(s) written, 0 deleted
+verified: A pulled the new generation
+
+$ HERMES_HOME=/root/work/roam-homes/sess-a hermes roam sessions
+roam: pulled session archives (read-only)
+proof-b: 1 session(s), 1.0 kB total
+  20261107_011113_8637ef  2026-11-07T09:11:13.850710Z  1.0 kB  Imported from Claude Code: session archive proof 3: beta transcript one
+roam: print one with `hermes roam sessions show <device> <session_id>`
+roam: archived sessions are read-only: they cannot be resumed, are never re-pushed, and live under <home>/roam/session-archive/
+verified: A's listing now shows B's opted-in session
+verified: A's listing shows only PULLED archives (A's own sessions are not listed)
+verified: publishing is gated per device — B's session traveled only after B opted in
+
+=== stage 3 — hermes roam status shows the opt-ins ===
+
+$ HERMES_HOME=/root/work/roam-homes/sess-a hermes roam status
+device       proof-a
+backend      local
+opt-ins      session archive (publish) ON (cap 50 MB); cron job definitions off
+pushed       generation 1
+pulled       generation 3
+remote head  generation 3 by proof-b
+remote       not ahead of this device
+local dirty  0 shared files changed — nothing to push
+fleet        2 devices
+
+$ HERMES_HOME=/root/work/roam-homes/sess-b hermes roam status
+device       proof-b
+backend      local
+opt-ins      session archive (publish) ON (cap 50 MB); cron job definitions off
+pushed       generation 3
+pulled       generation 1
+remote head  generation 3 by proof-b
+remote       not ahead of this device
+local dirty  0 shared files changed — nothing to push
+fleet        2 devices
+verified: A's status shows the session archive opt-in as ON
+verified: B's status shows the session archive opt-in as ON
+session archive (publish) ON
+session archive (publish) ON
+
+=== stage 4 — fresh pair (proof-c/proof-d), sync_sessions off: nothing session-related travels ===
+
+$ HERMES_HOME=/root/work/roam-homes/sess-c hermes sessions import --from claude /root/work/roam-homes/sess-c/fixture-4.jsonl
+✓ Imported Claude Code session as 20261107_011129_c9eee7
+  Continue it with:  hermes --resume 20261107_011129_c9eee7
+C has a real imported session: 20261107_011129_c9eee7 (sync_sessions left off)
+
+$ HERMES_HOME=/root/work/roam-homes/sess-c hermes config set plugins.entries.hermes-roam.settings.backend local
+✓ Set plugins.entries.hermes-roam.settings.backend = local in /root/work/roam-homes/sess-c/config.yaml
+
+$ HERMES_HOME=/root/work/roam-homes/sess-c hermes config set plugins.entries.hermes-roam.settings.local_dir /root/work/roam-homes/sess-store2
+✓ Set plugins.entries.hermes-roam.settings.local_dir = /root/work/roam-homes/sess-store2 in /root/work/roam-homes/sess-c/config.yaml
+
+$ HERMES_HOME=/root/work/roam-homes/sess-c hermes config set plugins.entries.hermes-roam.settings.device_name proof-c
+✓ Set plugins.entries.hermes-roam.settings.device_name = proof-c in /root/work/roam-homes/sess-c/config.yaml
+
+$ HERMES_HOME=/root/work/roam-homes/sess-c hermes roam init --create-remote
+roam: created the generation-0 remote head on the local backend and registered device 'proof-c'
+roam: next steps:
+  1. put ROAM_ARCHIVE_KEY in the active home's <home>/.env (same value on every device)
+  2. backend s3 also needs ROAM_S3_ACCESS_KEY_ID and ROAM_S3_SECRET_ACCESS_KEY in <home>/.env
+  3. run `hermes roam doctor`
+  4. run `hermes roam push`
+  5. on the second device: `hermes roam pull`, review, then `hermes roam pull --apply`
+roam: never paste secret values into chat or files roam writes
+
+$ HERMES_HOME=/root/work/roam-homes/sess-c hermes roam push
+roam: pushed generation 1 (4 files, 1280 bytes)
+roam: bundle bundles/000001-proof-c-2a2e9a4cd6f6.roam
+verified: C's push created a new generation
+verified: C's push published NO session archive (opt-in off)
+
+$ HERMES_HOME=/root/work/roam-homes/sess-d hermes config set plugins.entries.hermes-roam.settings.backend local
+✓ Set plugins.entries.hermes-roam.settings.backend = local in /root/work/roam-homes/sess-d/config.yaml
+
+$ HERMES_HOME=/root/work/roam-homes/sess-d hermes config set plugins.entries.hermes-roam.settings.local_dir /root/work/roam-homes/sess-store2
+✓ Set plugins.entries.hermes-roam.settings.local_dir = /root/work/roam-homes/sess-store2 in /root/work/roam-homes/sess-d/config.yaml
+
+$ HERMES_HOME=/root/work/roam-homes/sess-d hermes config set plugins.entries.hermes-roam.settings.device_name proof-d
+✓ Set plugins.entries.hermes-roam.settings.device_name = proof-d in /root/work/roam-homes/sess-d/config.yaml
+
+$ HERMES_HOME=/root/work/roam-homes/sess-d hermes roam init
+roam: connected to the local backend (local backend ready: /root/work/roam-homes/sess-store2 (44731 MiB free)); the remote head is at generation 1, last pushed by 'proof-c'; pull before pushing anything
+roam: next steps:
+  1. put ROAM_ARCHIVE_KEY in the active home's <home>/.env (same value on every device)
+  2. backend s3 also needs ROAM_S3_ACCESS_KEY_ID and ROAM_S3_SECRET_ACCESS_KEY in <home>/.env
+  3. run `hermes roam doctor`
+  4. run `hermes roam push`
+  5. on the second device: `hermes roam pull`, review, then `hermes roam pull --apply`
+roam: never paste secret values into chat or files roam writes
+
+$ HERMES_HOME=/root/work/roam-homes/sess-d hermes roam pull --apply
+roam: installed remote generation 1
+roam: 2 file(s) kept local (changed here since last sync):
+kept local (changed here since last sync): SOUL.md
+kept local (changed here since last sync): memories/MEMORY.md
+roam: run `hermes roam pull --apply --overwrite-conflicts` to overwrite them (a backup is kept)
+roam: 1 remote file(s) kept local by your scope rules:
+kept local by your scope rules: roam/installed-plugins.json
+roam: 1 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 2 path(s) changed locally since the last sync and remotely at the same time (conflicts) were kept local: SOUL.md, memories/MEMORY.md; resolve by pushing (this …
+roam: 1 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+verified: D pulled C's generation
+verified: D has no roam/session-archive/ directory
+
+$ HERMES_HOME=/root/work/roam-homes/sess-d hermes roam sessions
+roam: no pulled session archives on this device
+roam: a device that enables sync_sessions publishes its transcripts; run `hermes roam pull --apply` to receive them
+verified: D's roam sessions listing is empty
+signed HEAD manifest: 4 path(s), 0 session-archive path(s)
+archive namespaces: none
+
+$ HERMES_HOME=/root/work/roam-homes/sess-c hermes roam status
+device       proof-c
+backend      local
+opt-ins      session archive (publish) off (cap 50 MB); cron job definitions off
+pushed       generation 1
+pulled       generation 0
+remote head  generation 1 by proof-c
+remote       not ahead of this device
+local dirty  0 shared files changed — nothing to push
+fleet        1 devices
+verified: C's status shows the opt-in as off
+session archive (publish) off
+
+=== PROOF COMPLETE — live two-home session-archive flow verified under real Hermes 0.22.5 ===

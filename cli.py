@@ -667,13 +667,17 @@ def _cmd_rules(args: argparse.Namespace, as_json: bool) -> int:
     lines.extend([
         "",
         "what syncs (tiers):",
-        "always:   skills/, memories/, SOUL.md, plugin code, config.yaml "
-        "(host-specific keys kept local), and the stripped rules.yaml",
-        f"optional: session archive publish (sync_sessions={sess}; opt-in per device) and "
-        f"cron job definitions (sync_cron={cron}); hooks only via rules.yaml",
+        "always:   skills/, memories/, SOUL.md, hermes-pack.yaml, skins/, "
+        "config.yaml (host-specific keys kept local), and the plugin "
+        "name-and-sha list roam/installed-plugins.json — never plugin code",
+        f"optional: session archive publish (sync_sessions={sess}; opt-in per device), "
+        f"cron job definitions (sync_cron={cron}; opt-in per device), and hooks "
+        "via an explicit shared: rule in this device's roam/rules.yaml",
         "never:    secrets/.env/auth.json, the live state.db session database, "
         "raw sessions/ request dumps, caches/logs, host-specific config keys, "
-        "hub-installed skills, and pulled read-only session archives",
+        "hub-installed skills, plugin code trees, roam/rules.yaml itself, and "
+        "everything under <home>/roam/ (including pulled read-only session "
+        "archives)",
     ])
     print(*_cap(lines), sep="\n")
     return 0
