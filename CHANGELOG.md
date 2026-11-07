@@ -1,5 +1,102 @@
 # Changelog
 
+## 0.5.0 — 2026-11-07
+
+Hermes Roam now works for a multi-profile fleet, not just the default
+profile: profiles and bots travel as working Hermes profiles, roam always
+operates on the ROOT home, and the session archive covers every profile.
+This release also fixes first-pull `config.yaml` merging so a brand-new
+device receives the fleet's shared settings, and extends that fix to every
+profile config.
+
+### Multi-profile
+
+- `profiles/<name>/profile.yaml` — Hermes's non-secret per-profile identity
+  metadata (description, display name, bot roster title) — joins the shared
+  allowlist. Without it a pulled profile is not even listable by
+  `hermes profile list`; with it the profile arrives with its soul,
+  memories, skills, and skins intact, while its `.env`, session database,
+  and `sessions/` folder stay machine-local.
+- Roam always operates on the ROOT home. Under a profile context
+  (`hermes -p NAME`, a profile `HERMES_HOME`, or the session hooks of a
+  multi-profile gateway) every surface maps up to `<root>` by path
+  structure only — one store holds the whole tree with profile-relative
+  paths and one lock covers every context, so concurrent bots can never
+  interleave generations or mix profiles into one namespace. The sync
+  settings, the device name, and `allow_agent_apply` are read from the
+  ROOT home's `config.yaml`, never from the profile's own config.
+- Every CLI and slash surface names the covered root and lists every
+  profile with its `synced`/`excluded` state (`hermes roam status`,
+  `hermes roam rules`, push/pull/init output, `/roam status`).
+- The opt-in session archive covers EVERY home of the root: the export
+  runs once per home (the root home as profile `default`, then each
+  `profiles/<name>/`) into `archive/sessions/<device>/<profile>/`, under
+  one shared `sessions_max_mb` cap, globally newest first.
+  `hermes roam sessions` and `/roam sessions` group the listing by device
+  and profile, and `sessions show` takes the profile segment.
+- Per-profile exclusion is a one-liner (`local: [profiles/NAME/]` in that
+  device's `roam/rules.yaml`), disclosed as `NAME(excluded)` at every
+  surface. Carry-forward semantics are unchanged and pinned by tests: a
+  device that excluded a profile can never delete it; a device that can
+  see it can, and the deletion then propagates everywhere the profile is
+  visible.
+- Live two-home proof against real Hermes 0.22.5 (creation, push, pull,
+  listability, profile-context behavior, exclusion, one-device-only
+  arrival, and deletion) is captured in `docs/multi-profile-proof.log`;
+  the merged 0.5.0 two-device run (default + profiles work and personal,
+  per-profile first-pull config union, per-profile session export and
+  grouped listing) is captured in `docs/proof-0.5.0.log`.
+
+### First-pull config union and --overwrite-conflicts (0.4.2, extended to profile configs)
+
+- Root cause: every pull attempt — plan-only, restricted, or refused —
+  saved the downloaded bundle as `roam/last.roam`, and the three-way config
+  verdict read its BASE digests from that file. After a single plan review
+  on a fresh device, remote == base, so the device's own (nearly empty)
+  shared projection looked like a "local-only change": the whole
+  `config.yaml` was kept local, and the `--overwrite-conflicts` path was
+  unreachable because the remote == base short-circuit ran first. Regular
+  files were immune — their base (`base_files`) is only pinned on an
+  applied pull.
+- The config base is now the ACCEPTED projection, tracked per config in
+  `state.json` (`config_base_digests`): recorded when a push publishes this
+  device's own stripped config, when a pull apply merges or takes the
+  remote projection, and when a pull proves the local copy already carries
+  the remote projection — never when a bundle is merely downloaded or
+  reviewed, and never when a first-pull union keeps local values. A bundle
+  that was only looked at can no longer poison any verdict.
+- On a device's FIRST pull for a config (no accepted projection), the merge
+  is a UNION with local precedence: every remote shared key the local file
+  LACKS is added (the fleet's model/provider settings reach a fresh device),
+  every local value wins where both sides set the same key and is REPORTED by
+  dotted key name with both resolutions (push to publish, or pull with
+  `--overwrite-conflicts` to take the remote values), and host-scoped,
+  secret-looking and roam-plugin keys stay local exactly as before. In
+  0.5.0 the same first-pull union applies to EVERY synced config in the
+  tree — the root `config.yaml` and each `profiles/NAME/config.yaml`.
+- `pull --apply --overwrite-conflicts` now applies to `config.yaml` and to
+  each synced `profiles/NAME/config.yaml`: the remote shared projection
+  wins for shared keys while host-scoped/secret keys and the local roam
+  plugin settings stay local, and the pre-merge config is backed up like
+  every replaced file. Without the flag the union keeps local precedence,
+  so the flag is the only way to take remote values wholesale.
+- Byte-identical shared files were and remain non-conflicts (`unchanged`,
+  never rewritten). A brand-new device's Hermes-seeded default `SOUL.md`
+  cannot be detected from the plugin without private Hermes imports, so it
+  stays a listed conflict; instead every first pull on a device that never
+  synced tells the user plainly that a brand-new device should run
+  `hermes roam pull --apply --overwrite-conflicts` to take the remote home
+  (backups of everything replaced are kept). The README quick start says the
+  same.
+- Regression tests reproduce the exact repro end to end (real pipeline, real
+  scope code, in-memory backend): the plan-review poisoning step, the
+  first-pull union that brings the shared model keys while the device's own
+  api_key and roam settings survive, the by-name kept-key report, the
+  brand-new-device notice, and the `--overwrite-conflicts` takeover with a
+  backup — now for the root config AND for `profiles/NAME/config.yaml`.
+  The full suite and ruff are green; `scripts/demo-two-homes.sh`
+  exits 0 with real Hermes homes on both backends.
+
 ## 0.4.1 — 2026-11-07
 
 Session history becomes an opt-in, default-OFF, READ-ONLY archive, and

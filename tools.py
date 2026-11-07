@@ -44,6 +44,15 @@ def safe_device_name(name: object) -> str:
     return text if _DEVICE_NAME_RE.match(text) else "invalid-device-name"
 
 
+def safe_profile_name(name: object) -> str:
+    """Session-archive profile names are remote-controlled text (R7): a
+    surface displays one only when it passes the profile id grammar; anything
+    else becomes a fixed placeholder that carries no remote text."""
+    archive = roam_module("session_archive")
+    text = str(name)
+    return text if archive.is_valid_profile_name(text) else "invalid-profile-name"
+
+
 def safe_relpath(path: object) -> str:
     """Head manifest paths are remote-controlled text (R7): a surface
     displays one only when it passes the head path rules (R6) — relative,
@@ -142,9 +151,18 @@ def _sanitize_plan_dict(plan: dict) -> dict:
                 scope: [safe_relpath(path) for path in paths or []]
                 for scope, paths in scopes.items()
             }
-    for key in ("configs", "config_conflicts", "unchanged"):
+    for key in ("config_conflicts", "unchanged"):
         if key in out:
             out[key] = [safe_relpath(path) for path in out[key] or []]
+    if "configs" in out:
+        # 0.4.2: each entry is a [relpath, mode] pair ("merge" or
+        # "first_pull"); the path is remote-manifest-derived so it is
+        # charset-checked, the mode is engine-authored.
+        out["configs"] = [
+            [safe_relpath(entry[0]), entry[1]]
+            for entry in out["configs"] or []
+            if isinstance(entry, (list, tuple)) and len(entry) == 2
+        ]
     return out
 
 

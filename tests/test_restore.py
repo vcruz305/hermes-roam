@@ -98,7 +98,7 @@ def test_plan_flags_config_merge_separately(tmp_path: Path) -> None:
         home, staging, manifest, classes={Scope.SHARED}, rules=object(), base_manifest={},
         is_config=lambda relpath: relpath == "config.yaml" or relpath == "profiles/p/config.yaml",
     )
-    assert plan.configs == (("config.yaml", staging / "config.yaml"),)
+    assert plan.configs == (("config.yaml", staging / "config.yaml", "merge"),)
     assert plan.to_write == ()
     assert plan.to_delete == ()
 
@@ -455,13 +455,16 @@ def config_entry() -> dict:
 
 
 def test_config_three_way_planning(tmp_path: Path) -> None:
-    """RULING: R3 — configs are compared by shared projection digest local vs
-    base vs remote: remote-only changes merge, local-only changes stay
-    local, both-sides changes conflict, identical shared content is
-    unchanged, and a config never synced here merges as today."""
-    base_digests = {"config.yaml": projection(CONFIG_BASE)}
+    """RULING: R3 + 0.4.2 — configs are compared by shared projection digest
+    local vs ACCEPTED base vs remote: remote-only changes merge, local-only
+    changes stay local, both-sides changes conflict, identical shared
+    content is unchanged, and a config with NO accepted base (a first pull)
+    merges as a union with local precedence instead."""
+    base_digest = projection(CONFIG_BASE)
 
-    def plan_for(local_text: str, staged_text: str, base: dict, **kw) -> restore.InstallPlan:
+    def plan_for(
+        local_text: str, staged_text: str, base: dict, *, accepted: bool = True, **kw
+    ) -> restore.InstallPlan:
         home = make_home(tmp_path / f"home-{abs(hash((local_text, staged_text))) % 10**8}", {})
         if local_text:
             (home / "config.yaml").write_text(local_text)
@@ -470,7 +473,8 @@ def test_config_three_way_planning(tmp_path: Path) -> None:
         return restore.plan_install(
             home, staging, {"config.yaml": config_entry()},
             classes={Scope.SHARED}, rules=object(), base_manifest=base,
-            config_base_digests=base_digests, shared_projection_fn=projection, **kw,
+            config_base_digests={"config.yaml": base_digest} if accepted else None,
+            shared_projection_fn=projection, **kw,
         )
 
     # identical shared projection (the local host keys are stripped): unchanged
@@ -482,7 +486,7 @@ def test_config_three_way_planning(tmp_path: Path) -> None:
     # remote-only change: merge as today
     remote_v2 = "model:\n  provider: p-a\ncustom:\n  shared_setting: a-v2\n"
     plan = plan_for(CONFIG_LOCAL_HOST, remote_v2, {"config.yaml": config_entry()})
-    assert [rel for rel, _ in plan.configs] == ["config.yaml"]
+    assert [(rel, mode) for rel, _, mode in plan.configs] == [("config.yaml", "merge")]
     assert plan.config_conflicts == ()
     assert plan.unchanged == ()
 
@@ -502,12 +506,19 @@ def test_config_three_way_planning(tmp_path: Path) -> None:
     assert plan.configs == ()
     plan_over = plan_for(local_edit, remote_v2, {"config.yaml": config_entry()}, overwrite_conflicts=True)
     assert plan_over.config_conflicts == ()
-    assert [rel for rel, _ in plan_over.configs] == ["config.yaml"]
+    assert [(rel, mode) for rel, _, mode in plan_over.configs] == [("config.yaml", "merge")]
 
-    # never synced on this device (first pull): merge as today
-    plan = plan_for(CONFIG_LOCAL_HOST, remote_v2, {})
-    assert [rel for rel, _ in plan.configs] == ["config.yaml"]
+    # never accepted on this device (first pull): the merge is a union with
+    # local precedence — remote-only shared keys are added, local values win
+    # where both sides set the same key and are listed — and
+    # --overwrite-conflicts instead takes the remote projection wholesale
+    plan = plan_for(CONFIG_LOCAL_HOST, remote_v2, {}, accepted=False)
+    assert [(rel, mode) for rel, _, mode in plan.configs] == [("config.yaml", "first_pull")]
     assert plan.config_conflicts == ()
+    assert any("never synced here" in note for note in plan.notes), plan.notes
+    plan_over = plan_for(CONFIG_LOCAL_HOST, remote_v2, {}, accepted=False, overwrite_conflicts=True)
+    assert [(rel, mode) for rel, _, mode in plan_over.configs] == [("config.yaml", "merge")]
+    assert plan_over.config_conflicts == ()
 
 
 def test_config_planning_without_projection_fn_is_legacy_merge(tmp_path: Path) -> None:
@@ -520,7 +531,7 @@ def test_config_planning_without_projection_fn_is_legacy_merge(tmp_path: Path) -
         classes={Scope.SHARED}, rules=object(), base_manifest={"config.yaml": config_entry()},
         is_config=lambda rel: rel == "config.yaml",
     )
-    assert [rel for rel, _ in plan.configs] == ["config.yaml"]
+    assert [rel for rel, _, _mode in plan.configs] == ["config.yaml"]
     assert plan.config_conflicts == ()
     assert plan.unchanged == ()
 
@@ -686,7 +697,7 @@ def test_apply_failure_without_backup_marks_unrecoverable(
         {"config.yaml": config_entry(), "skills/b/SKILL.md": entry(b"other", 0o644, Scope.SHARED)},
         classes={Scope.SHARED}, rules=object(), base_manifest={},
     )
-    assert [rel for rel, _ in plan.configs] == ["config.yaml"]
+    assert [rel for rel, _, _mode in plan.configs] == ["config.yaml"]
     assert [f.relpath for f in plan.to_write] == ["skills/b/SKILL.md"]
     real_install = restore._install_from_staged
     installs = []

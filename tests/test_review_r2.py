@@ -373,7 +373,7 @@ def test_f7_non_optin_device_wipes_sessions_fleet_wide(tmp_path, monkeypatch) ->
             "",
         ),
     )
-    init_and_push(engine_a)  # generation 1 carries archive/sessions/dev-a/sess-1.md
+    init_and_push(engine_a)  # generation 1 carries archive/sessions/dev-a/default/sess-1.md
 
     home_b = make_home(tmp_path, "home-b")
     engine_b = mk_engine(home_b, "dev-b", backend)  # sync_sessions=False
@@ -382,12 +382,12 @@ def test_f7_non_optin_device_wipes_sessions_fleet_wide(tmp_path, monkeypatch) ->
     write(home_b / "skills/new/SKILL.md", b"b's own work")
     engine_b.push()  # generation 2: A's archive entries are carried forward
     files = signed_files(backend)
-    assert "archive/sessions/dev-a/sess-1.md" in files, (
+    assert "archive/sessions/dev-a/default/sess-1.md" in files, (
         "device B's push dropped the archive entry it cannot see instead "
         "of carrying it forward from roam/last.roam: every device's next "
         "pull would lose A's published archive"
     )
-    base_entry = files["archive/sessions/dev-a/sess-1.md"]
+    base_entry = files["archive/sessions/dev-a/default/sess-1.md"]
     assert base_entry.get("sha256") and base_entry.get("size"), (
         "the carried-forward entry lost its content identity"
     )

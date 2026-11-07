@@ -55,7 +55,10 @@ class InstallPlan:
 
     to_write: tuple[PlannedFile, ...] = ()
     to_delete: tuple[str, ...] = ()
-    configs: tuple[tuple[str, Path], ...] = ()  # (relpath, staged) config files to merge
+    # (relpath, staged, mode) config files to merge; mode is "merge" (the
+    # remote shared projection wins for shared keys) or "first_pull" (union:
+    # remote-only shared keys are added, local values win where both set)
+    configs: tuple[tuple[str, Path, str], ...] = ()
     skipped: tuple[str, ...] = ()
     conflicts: tuple[str, ...] = ()  # local-vs-remote divergences kept local
     unchanged: tuple[str, ...] = ()  # staged content identical to local: never rewritten
@@ -66,7 +69,7 @@ class InstallPlan:
         return {
             "to_write": [f.to_dict() for f in self.to_write],
             "to_delete": list(self.to_delete),
-            "configs": [relpath for relpath, _ in self.configs],
+            "configs": [[relpath, mode] for relpath, _, mode in self.configs],
             "skipped": list(self.skipped),
             "conflicts": list(self.conflicts),
             "unchanged": list(self.unchanged),
@@ -223,6 +226,7 @@ def plan_install(
     base_manifest: dict,
     config_base_digests: dict[str, str] | None = None,
     shared_projection_fn: Callable[[str], str] | None = None,
+    first_pull_conflict_keys_fn: Callable[[str, str], list[str]] | None = None,
     overwrite_conflicts: bool = False,
     is_config: Callable[[str], bool] | None = None,
 ) -> InstallPlan:
@@ -241,12 +245,18 @@ def plan_install(
 
     Config files are never written or deleted verbatim. With a
     ``shared_projection_fn`` each config's shared projection digest is
-    compared local vs base vs remote: a remote-only change merges as today
-    (``configs``); a local-only change stays local (the next push
-      publishes it); a change on both sides is a ``config_conflict`` kept
-      local unless ``overwrite_conflicts``; identical shared content is
-    ``unchanged``. Without ``shared_projection_fn`` configs merge as
-    today (legacy callers).
+    compared local vs base vs remote: a remote-only change merges
+    (``configs``, mode ``merge``); a local-only change stays local (the
+    next push publishes it); a change on both sides is a
+    ``config_conflict`` kept local unless ``overwrite_conflicts``; identical
+    shared content is ``unchanged``. A config with NO accepted base (a
+    first pull) merges as a union instead (mode ``first_pull``): the
+    remote's shared keys are added where the local file lacks them, every
+    local value wins where both sides set the same key (listed in
+    ``notes`` via ``first_pull_conflict_keys_fn``), and host-scoped and
+    secret keys stay local; ``overwrite_conflicts`` takes the remote
+    projection wholesale instead. Without ``shared_projection_fn`` configs
+    merge as today (legacy callers).
     """
     home = Path(home)
     staging_dir = Path(staging_dir)
@@ -260,7 +270,7 @@ def plan_install(
     unchanged: list[str] = []
     config_conflicts: list[str] = []
     notes: list[str] = []
-    configs: list[tuple[str, Path]] = []
+    configs: list[tuple[str, Path, str]] = []
     for relpath in sorted(manifest):
         if relpath == MANIFEST_MEMBER or not isinstance(relpath, str):
             continue
@@ -281,17 +291,47 @@ def plan_install(
                 raise RestoreError(f"the staged config file is missing: {relpath}")
             if shared_projection_fn is None:
                 # legacy caller: no three-way config data available
-                configs.append((relpath, staged))
+                configs.append((relpath, staged, "merge"))
                 continue
-            remote_digest = shared_projection_fn(staged.read_text(encoding="utf-8", errors="replace"))
-            local_digest = shared_projection_fn(_local_config_text(home, relpath))
+            staged_text = staged.read_text(encoding="utf-8", errors="replace")
+            local_text = _local_config_text(home, relpath)
+            remote_digest = shared_projection_fn(staged_text)
+            local_digest = shared_projection_fn(local_text)
             if local_digest == remote_digest:
                 unchanged.append(relpath)
                 continue
             base_digest = base_digests.get(relpath)
             if base_digest is None:
-                # never synced on this device (first pull): merge as today
-                configs.append((relpath, staged))
+                # first pull: this device never accepted a shared
+                # projection for this config. The merge is a union — the
+                # remote's shared keys are added where the local file lacks
+                # them and every local value wins where both sides set the
+                # same key — unless the user explicitly takes the remote
+                # projection wholesale with --overwrite-conflicts.
+                if overwrite_conflicts:
+                    configs.append((relpath, staged, "merge"))
+                    continue
+                configs.append((relpath, staged, "first_pull"))
+                kept_keys = (
+                    first_pull_conflict_keys_fn(staged_text, local_text)
+                    if first_pull_conflict_keys_fn is not None
+                    else []
+                )
+                if kept_keys:
+                    shown = ", ".join(kept_keys[:10])
+                    more = f" (+{len(kept_keys) - 10} more)" if len(kept_keys) > 10 else ""
+                    notes.append(
+                        f"{relpath}: never synced here; the remote's shared keys are "
+                        f"added where this file lacks them, and the local value is kept "
+                        f"for shared key(s) already set here: {shown}{more} "
+                        "(push from this device to publish them, or pull with "
+                        "--overwrite-conflicts to take the remote values)"
+                    )
+                else:
+                    notes.append(
+                        f"{relpath}: never synced here; the remote's shared keys are "
+                        "added; host-scoped and secret keys stay local"
+                    )
                 continue
             if remote_digest == base_digest:
                 # local-only change: keep local; the next push publishes it
@@ -301,10 +341,11 @@ def plan_install(
                 )
                 continue
             if local_digest == base_digest:
-                configs.append((relpath, staged))  # remote-only change: merge as today
+                # remote-only change: merge as today
+                configs.append((relpath, staged, "merge"))
                 continue
             if overwrite_conflicts:
-                configs.append((relpath, staged))
+                configs.append((relpath, staged, "merge"))
             else:
                 config_conflicts.append(relpath)
             continue
@@ -468,7 +509,7 @@ def apply(
     journal_dir = Path(journal_dir)
     backup_dir = Path(backup_dir)
     affected = [f.relpath for f in plan.to_write] + list(plan.to_delete)
-    for relpath, _ in plan.configs:
+    for relpath, _staged, _mode in plan.configs:
         affected.append(relpath)
     for relpath in affected:
         _safe_relpath(relpath)
@@ -491,7 +532,7 @@ def apply(
         "home": str(home),
         "backup_dir": str(backup_dir),
         "to_write": sorted(f.relpath for f in plan.to_write)
-        + sorted(relpath for relpath, _ in plan.configs),
+        + sorted(relpath for relpath, _staged, _mode in plan.configs),
         "to_delete": sorted(plan.to_delete),
         # R5: which affected paths existed before the install; the rollback
         # removes only what roam itself created and never unlinks a
@@ -535,7 +576,7 @@ def apply(
                 target.unlink(missing_ok=True)
                 _fsync_dir(target.parent)
                 deleted += 1
-        for relpath, staged_path in plan.configs:
+        for relpath, staged_path, mode_flag in plan.configs:
             local_config = home / relpath
             # keep the local file's mode; a config that does not exist yet is
             # private (it will hold this host's secrets after the merge)
@@ -546,7 +587,10 @@ def apply(
             if not mode:
                 mode = 0o600
             local_text = local_config.read_text() if local_config.is_file() else ""
-            merged = merge_config_fn(staged_path.read_text(), local_text, host_keys)
+            merged = merge_config_fn(
+                staged_path.read_text(), local_text, host_keys,
+                first_pull=(mode_flag == "first_pull"),
+            )
             _write_atomic(local_config, merged.encode("utf-8"), mode)
             config_merged = True
         record.update(phase=PHASE_COMMITTED, updated_at=time.time())

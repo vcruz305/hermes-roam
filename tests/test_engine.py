@@ -157,13 +157,20 @@ def test_push_pull_round_trip(tmp_path: Path) -> None:
     assert not (home_b / "cache").exists()
     assert not (home_b / "plugins/foo/plugin.yaml").exists()
     assert not (home_b / "roam/installed-plugins.json").is_file()
-    # config merge: A's model keys arrive, B's host-scoped keys survive, A's paths do not
+    # config merge (0.4.2 first-pull union): B never accepted a shared
+    # projection before, so the remote's shared keys are added where B's
+    # file lacks them and B's own values win where both sides set the same
+    # key — nothing of A's arrives here because B sets every shared key A
+    # carries; host-scoped keys stay B's either way
     merged_text = (home_b / "config.yaml").read_text()
     merged = yaml.safe_load(merged_text)
-    assert merged["model"] == {"provider": "p-a", "temperature": 0.7}
+    assert merged["model"] == {"provider": "p-b", "temperature": 0.2}
     assert merged["terminal"] == {"theme": "light-b", "font": "sans-b"}
     assert merged["browser"] == {"executable": "/usr/local/bin/browser-b"}
     assert "/root/" not in merged_text
+    assert any(
+        "never synced here" in note and "model.provider" in note for note in result.notes
+    ), result.notes
     # state and backups
     state = engine_b.load_state()
     assert state.last_pulled_generation == 1
@@ -185,20 +192,25 @@ def test_status_clean_after_pull_and_nothing_to_push(tmp_path: Path) -> None:
     engine_b.pull(apply=True)
     settled = engine_b.status()
     assert settled.remote_ahead is False
-    assert settled.local_dirty is False
-    assert settled.dirty_count == 0
+    # 0.4.2: the first-pull union kept this device's own shared model
+    # values, so the home is honestly dirty until they are published —
+    # "local wins" is visible, never silent
+    assert settled.local_dirty is True
+    assert settled.dirty_count == 1
     # pulls never write the device into the head's device map; only pushes do.
     # The pull-only device still shows up, synthesized from local state.
     assert {d.name for d in settled.devices} == {"dev-a", "dev-b"}
     by_name = {d.name: d for d in settled.devices}
     assert by_name["dev-b"].last_pull_generation == 1
     assert by_name["dev-b"].last_push_generation == 0
-    # neither device can push again without a real change — including under
-    # --dry-run: the skip outcome wins over any would-push summary (0.4.0).
+    # publishing the kept values is the resolution; afterwards the device is
+    # clean and a push with nothing to push is skipped again
+    assert engine_b.push().generation == 2
+    settled = engine_b.status()
+    assert settled.local_dirty is False
+    assert settled.dirty_count == 0
     assert engine_b.push().skipped_reason == "nothing to push"
-    assert engine_a.push().skipped_reason == "nothing to push"
-    assert engine_a.push(dry_run=True).skipped_reason == "nothing to push"
-    assert backend.get_head()[1] == "fake-token-2"  # head untouched by skipped pushes
+    assert backend.get_head()[1] == "fake-token-3"  # only B's real gen-2 push moved it
 
 
 def test_remote_ahead_refusal_then_pull_and_push(tmp_path: Path) -> None:
@@ -209,8 +221,10 @@ def test_remote_ahead_refusal_then_pull_and_push(tmp_path: Path) -> None:
     with pytest.raises(RemoteAhead):
         engine_b.push()
     engine_b.pull(apply=True)
-    # no local change -> still nothing to push
-    assert engine_b.push().skipped_reason == "nothing to push"
+    # 0.4.2: the first-pull union kept this device's own shared model
+    # values, so there IS something to push — publishing them is the
+    # local-wins resolution and stays visible in status until it happens
+    assert engine_b.status().local_dirty is True
     write(home_b / "skills/from-b/SKILL.md", b"B's own skill")
     pushed = engine_b.push()
     assert pushed.generation == 2
@@ -454,7 +468,9 @@ def test_diff_groups_local_changes_against_remote(tmp_path: Path) -> None:
     assert diff.remote_generation == 2
     assert "skills/new/SKILL.md" in diff.added.get(Scope.SHARED, [])
     assert "skills/roam/SKILL.md" in diff.removed.get(Scope.SHARED, [])
-    assert diff.changed.get(Scope.SHARED, []) == []
+    # 0.4.2: the first-pull union kept this device's own shared model
+    # values, so config.yaml stays visibly changed until the device pushes
+    assert set(diff.changed.get(Scope.SHARED, [])) == {"config.yaml"}
 
 
 def test_status_flags_local_dirty(tmp_path: Path) -> None:
@@ -559,15 +575,18 @@ def test_restricted_pull_skips_config_and_keeps_remote_ahead(tmp_path: Path) -> 
     # pushing over the unpulled remote changes is still refused
     with pytest.raises(RemoteAhead):
         engine_b.push()
-    # a full pull afterwards completes the sync; the config is a LOCAL-only
-    # change (R3): it is kept local, never merged, and the next push from
-    # this device publishes it
+    # a full pull afterwards completes the sync; the config was never
+    # ACCEPTED here (the restricted pull above did not touch it), so the
+    # merge is the 0.4.2 first-pull union: this device's own shared values
+    # win and stay visibly dirty until they are published
     full = engine_b.pull(apply=True)
-    assert full.config_merged is False
-    assert (home_b / "config.yaml").read_text() == before
+    assert full.config_merged is True
+    merged = yaml.safe_load((home_b / "config.yaml").read_text())
+    assert merged["model"] == {"provider": "p-b", "temperature": 0.2}
+    assert merged["terminal"] == {"theme": "light-b", "font": "sans-b"}
     settled = engine_b.status()
     assert settled.remote_ahead is False
-    assert settled.local_dirty is True  # the kept change is pending publish
+    assert settled.local_dirty is True  # the kept values are pending publish
 
 
 def test_restricted_pull_prefix_matching(tmp_path: Path) -> None:
@@ -916,7 +935,7 @@ def test_status_clean_after_opting_out_of_a_synced_class(tmp_path: Path, monkeyp
 
     engine_a.init(create_remote=True)
     assert engine_a.push().generation == 1
-    assert "archive/sessions/dev-a/sess-abc123.md" in signed()
+    assert "archive/sessions/dev-a/default/sess-abc123.md" in signed()
 
     # the raw request dump never traveled
     assert "sessions/request_dump_1.json" not in signed()
@@ -936,7 +955,7 @@ def test_status_clean_after_opting_out_of_a_synced_class(tmp_path: Path, monkeyp
     # the opt-out PUBLISHES the unpublishing: this device's own archive
     # namespace leaves the manifest, and the push goes through
     assert again.generation == 2
-    assert "archive/sessions/dev-a/sess-abc123.md" not in signed()
+    assert "archive/sessions/dev-a/default/sess-abc123.md" not in signed()
     # with the fleet state now settled, the next push has nothing to do
     settled_again = engine_off.status()
     assert settled_again.local_dirty is False

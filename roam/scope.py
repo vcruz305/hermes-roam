@@ -139,14 +139,26 @@ DEFAULT_RULES: tuple[tuple[str, Scope], ...] = (
     # The allowlist: only these paths ever travel, top level and per profile.
     # roam/rules.yaml is NOT here: it is per-device policy and always LOCAL
     # (R2) — a device's rules never move to another machine.
+    # profile.yaml is Hermes's named-profile metadata (description, display
+    # name, bot roster title, rename history): non-secret, and one of the
+    # profile IDENTITY markers. A root home has none; the rule exists so the
+    # re-application inside profiles/<name>/ classifies the real file SHARED
+    # (see classify_path), because without it (and without any other marker)
+    # a pulled profile is not even listable.
     ("config.yaml", Scope.SHARED),
     ("SOUL.md", Scope.SHARED),
+    ("profile.yaml", Scope.SHARED),
     ("hermes-pack.yaml", Scope.SHARED),
     ("memories/", Scope.SHARED),
     ("skills/", Scope.SHARED),
     ("skins/", Scope.SHARED),
     ("profiles/*/config.yaml", Scope.SHARED),
     ("profiles/*/SOUL.md", Scope.SHARED),
+    # 0.4.2: Hermes keeps per-profile metadata (description, display name,
+    # bot roster title, rename history) in profiles/<name>/profile.yaml —
+    # non-secret, and one of Hermes's profile IDENTITY markers: without it
+    # (and without any other marker) a pulled profile is not even listable.
+    ("profiles/*/profile.yaml", Scope.SHARED),
     ("profiles/*/hermes-pack.yaml", Scope.SHARED),
     ("profiles/*/memories/", Scope.SHARED),
     ("profiles/*/skills/", Scope.SHARED),
@@ -834,7 +846,93 @@ def _host_key_covers_any(host_keys: list[str], path: tuple[str, ...]) -> bool:
     return any(_host_key_covers(host_key, path) for host_key in host_keys)
 
 
-def merge_config(remote_text: str, local_text: str, host_keys: list[str]) -> str:
+def _covered_by(path: tuple[str, ...], protected: set[tuple[str, ...]]) -> bool:
+    """Whether the path or any of its ancestors is a protected entry (a
+    protected key covers its whole subtree, so descendants are covered too)."""
+    return any(path[:depth] in protected for depth in range(1, len(path) + 1))
+
+
+def _union_missing_shared(local: dict, remote: object, path: tuple[str, ...],
+                          protected: set[tuple[str, ...]]) -> int:
+    """Add the remote's shared settings the local tree lacks, in place.
+
+    Only paths that are NOT protected travel; every local value that is
+    already set wins and is never replaced. Returns the number of remote
+    settings added.
+    """
+    added = 0
+    if _covered_by(path, protected):
+        return 0
+    if isinstance(remote, dict):
+        for key, value in remote.items():
+            child = (*path, key)
+            local_value = local.get(key, _MISSING)
+            if _covered_by(child, protected):
+                continue
+            if isinstance(value, dict):
+                if isinstance(local_value, dict):
+                    added += _union_missing_shared(local_value, value, child, protected)
+                elif local_value is _MISSING:
+                    # the whole remote group is absent here: bring over the
+                    # shared leaves it still carries, never verbatim
+                    holder: dict = {}
+                    if _union_missing_shared(holder, value, child, protected):
+                        local[key] = holder
+                        added += 1
+                # a local scalar/list set on the same key wins: nothing is added
+                continue
+            if local_value is _MISSING:
+                local[key] = copy.deepcopy(value)
+                added += 1
+            # a local value set on the same key wins: never replaced
+        return added
+    # a remote non-dict at the root cannot be merged into a mapping: nothing to do
+    return 0
+
+
+def _conflicting_shared_keys(local: object, remote: object, path: tuple[str, ...],
+                             protected: set[tuple[str, ...]]) -> list[tuple[str, ...]]:
+    """Shared setting paths set on BOTH sides with different values.
+
+    Protected paths never count (they are always local by definition); the
+    first-pull merge keeps every local value for the paths listed here.
+    """
+    out: list[tuple[str, ...]] = []
+    if _covered_by(path, protected):
+        return out
+    if isinstance(remote, dict) and isinstance(local, dict):
+        for key in sorted(set(remote) | set(local)):
+            child = (*path, key)
+            if _covered_by(child, protected):
+                continue
+            remote_value = remote.get(key, _MISSING)
+            local_value = local.get(key, _MISSING)
+            if isinstance(remote_value, dict) and isinstance(local_value, dict):
+                out.extend(_conflicting_shared_keys(local_value, remote_value, child, protected))
+            elif remote_value is not _MISSING and local_value is not _MISSING \
+                    and remote_value != local_value:
+                out.append(child)
+        return out
+    if local is not _MISSING and remote is not _MISSING and local != remote:
+        out.append(path)
+    return out
+
+
+def first_pull_conflict_keys(remote_text: str, local_text: str,
+                             host_keys: list[str]) -> list[str]:
+    """Dotted shared key paths a first pull keeps local: set on both sides
+    with different values and not host-scoped/secret. The first-pull merge
+    never replaces these local values; the pull lists them so the user
+    knows what stayed and how to publish or overwrite it."""
+    remote = _parse_config(remote_text, "remote")
+    local = _parse_config(local_text, "local")
+    protected = _protected_paths(remote, list(host_keys)) | _protected_paths(local, list(host_keys))
+    paths = _conflicting_shared_keys(local, remote, (), protected)
+    return [".".join(path) for path in sorted(paths)]
+
+
+def merge_config(remote_text: str, local_text: str, host_keys: list[str],
+                 *, first_pull: bool = False) -> str:
     """Merge a remote config.yaml with this device's host-scoped values.
 
     Host-scoped paths are those covered by a host key, key names that look
@@ -843,11 +941,24 @@ def merge_config(remote_text: str, local_text: str, host_keys: list[str]) -> str
     every host-scoped path replaced by the local value (or removed when
     local lacks it) and every local-only host-scoped value kept, so a
     device's secrets, credentials, paths and host settings never move.
+
+    With ``first_pull`` (a device that never accepted a shared projection
+    for this config) the merge is a union with local precedence instead:
+    every remote shared setting the local file LACKS is added, and every
+    local value set on a key both sides touch wins — a brand-new device
+    receives the fleet's shared settings without surrendering anything
+    it set itself. Host-scoped and secret paths stay local either way.
     """
     remote = _parse_config(remote_text, "remote")
     local = _parse_config(local_text, "local")
     keys = list(host_keys)
     protected = _protected_paths(remote, keys) | _protected_paths(local, keys)
+    if first_pull:
+        result = copy.deepcopy(local)
+        _union_missing_shared(result, remote, (), protected)
+        if not result:
+            return ""
+        return yaml.safe_dump(result, sort_keys=False)
     result = copy.deepcopy(remote)
     removed: set[tuple[str, ...]] = set()
     for path in protected:
@@ -880,13 +991,36 @@ def strip_host_keys(config_text: str, host_keys: list[str]) -> str:
 
 def shared_projection_digest(config_text: str, host_keys: list[str]) -> str:
     """sha256 of the canonical SHARED projection of a config.yaml: the
-    strip_host_keys text (R3). The digest is stable — stripping an already
-    stripped projection yields the same bytes — so three-way local vs base
-    vs remote comparisons are exact, and the digest of a projection a push
-    published equals that bundle manifest entry's sha256.
+    strip_host_keys tree serialized canonically (sorted keys, so the digest
+    is ORDER-INDEPENDENT — a device whose config carries the same shared
+    values in a different key order is the same projection, never a phantom
+    change). Stripping an already stripped projection yields the same tree,
+    so three-way local vs base vs remote comparisons are exact, and a push
+    records the projection it published through this same function.
     """
+    stripped = strip_host_keys(config_text, host_keys)
+    try:
+        tree = yaml.safe_load(stripped) if stripped else {}
+    except yaml.YAMLError:
+        tree = {}
+    if not isinstance(tree, dict):
+        tree = {}
+
+    def canonical(value: object) -> object:
+        if isinstance(value, dict):
+            return {
+                str(key): canonical(item)
+                for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+            }
+        if isinstance(value, list):
+            return [canonical(item) for item in value]
+        return value
+
     return hashlib.sha256(
-        strip_host_keys(config_text, host_keys).encode("utf-8")
+        json.dumps(
+            canonical(tree), sort_keys=True, separators=(",", ":"),
+            ensure_ascii=True, default=str,
+        ).encode("utf-8")
     ).hexdigest()
 
 

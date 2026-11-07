@@ -14,6 +14,7 @@ from .settings import roam_module
 from .tools import (
     safe_device_name,
     safe_error_text,
+    safe_profile_name,
     safe_relpath,
     safe_session_id,
     safe_status_error,
@@ -23,12 +24,21 @@ from .tools import (
 _VERBS = ("status", "push", "pull", "diff", "devices", "sessions", "doctor", "history", "help")
 _MAX_LINES = 20
 _MAX_CHARS = 160
+# Engine-authored pull notices (kept key names, first-pull and brand-new-
+# device guidance) are long fixed sentences; 160 chars would cut the
+# guidance mid-command (0.4.2).
+_NOTE_CHARS = 500
 _MAX_ERROR_CHARS = 300
 
 
 def _short(value: object) -> str:
     text = str(value)
     return text if len(text) <= _MAX_CHARS else text[: _MAX_CHARS - 1] + "…"
+
+
+def _short_note(value: object) -> str:
+    text = str(value)
+    return text if len(text) <= _NOTE_CHARS else text[: _NOTE_CHARS - 1] + "…"
 
 
 def _bullets(lines: list[str]) -> str:
@@ -40,14 +50,18 @@ def _help(note: str = "") -> str:
             "pull, pull apply, pull apply overwrite, diff, devices, sessions, "
             "doctor, history, help. pull alone only shows the plan; pull apply "
             "rewrites home files after making a backup; pull apply overwrite "
-            "also overwrites files changed here since the last sync. sessions "
-            "lists pulled read-only session archives — a transcript is never "
-            "dumped here; print one on the terminal with `hermes roam sessions "
-            "show <device> <session_id>`. history lists the versions the "
-            "remote store still holds; recovering one is a terminal command: "
-            "hermes roam restore <path> --generation N --apply. The roam_pull "
-            "tool refuses apply=true unless the user enabled "
-            "allow_agent_apply. Secrets are never synced.")
+            "also overwrites files changed here since the last sync. roam "
+            "always runs on the ROOT home — under a named profile it covers "
+            "the whole tree (root plus every profiles/<name>/) with settings "
+            "from the root home's config. sessions lists pulled read-only "
+            "session archives grouped by device and profile — a transcript "
+            "is never dumped here; print one on the terminal with `hermes "
+            "roam sessions show <device> <profile> <session_id>`. history "
+            "lists the versions the remote store still holds; recovering "
+            "one is a terminal command: hermes roam restore <path> "
+            "--generation N --apply. The roam_pull tool refuses apply=true "
+            "unless the user enabled allow_agent_apply. Secrets are never "
+            "synced.")
     return f"Roam: {note}\n{text}" if note else f"Roam: {text}"
 
 
@@ -90,7 +104,8 @@ def handle(raw_args: str, **kwargs) -> str:
 
 def _status(engine) -> str:
     status = engine.status()
-    lines = [f"device {status.device}, backend {status.backend}"]
+    lines = [f"device {status.device}, backend {status.backend}",
+             _covered_line()]
     opt_ins = getattr(status, "opt_ins", {}) or {}
     lines.append(
         "session archive publish "
@@ -148,9 +163,8 @@ def _push(engine, rest: list[str]) -> str:
         return text
     notes = getattr(result, "notes", []) or []
     text = ("Roam: pushed generation "
-            f"{result.generation} ({result.file_count} files, {result.bundle_size} bytes)")
-    if notes:
-        text += "\n" + _bullets(notes)
+            f"{result.generation} ({result.file_count} files, {result.bundle_size} bytes)\n"
+            + _bullets([_covered_line(), *notes]))
     return text
 
 
@@ -184,10 +198,23 @@ def _pull(engine, rest: list[str]) -> str:
         counts = {group: sum(len(p) for p in getattr(result.plan, group).values())
                   for group in ("added", "changed", "removed")}
         lines = [f"plan for remote generation {result.generation} — nothing changed yet",
+             _covered_line(),
                 f"{counts['added']} added, {counts['changed']} changed, "
                 f"{counts['removed']} removed files"]
-        for path in sorted(getattr(result.plan, "configs", []) or []):
-            lines.append(f"would merge {safe_relpath(path)} (host-scoped keys stay local)")
+        for entry in sorted(getattr(result.plan, "configs", []) or []):
+            if not (isinstance(entry, (list, tuple)) and len(entry) == 2):
+                continue
+            relpath, mode = entry
+            if mode == "first_pull":
+                lines.append(
+                    f"would first-pull merge {safe_relpath(relpath)} "
+                    "(remote-only shared keys added, local values win where "
+                    "both are set, host-scoped and secret keys stay local)"
+                )
+            else:
+                lines.append(
+                    f"would merge {safe_relpath(relpath)} (host-scoped keys stay local)"
+                )
         config_conflicts = [
             safe_relpath(path)
             for path in sorted(getattr(result.plan, "config_conflicts", []) or [])
@@ -211,9 +238,20 @@ def _pull(engine, rest: list[str]) -> str:
         if result.plugins_to_install:
             lines.append("plugins to install with `hermes plugins install`: "
                          + ", ".join(result.plugins_to_install))
-        lines.append("send /roam pull apply to install after making a backup")
-        return "Roam: " + _bullets(lines)
-    lines = [f"installed remote generation {result.generation}"]
+        notes = list(getattr(result, "notes", []) or [])
+        text = "Roam: " + _bullets(lines)
+        # 0.4.2/R11: the engine's plan notices — the kept local key names,
+        # the first-pull union rules and the brand-new-device guidance —
+        # must reach the plan review, not only the apply. They are
+        # engine-authored sentences, wide-capped above.
+        if notes:
+            text += "\n" + "\n".join(
+                f"• {_short_note(note)}" for note in notes[:10]
+            )
+        text += "\n• send /roam pull apply to install after making a backup"
+        return text
+    lines = [f"installed remote generation {result.generation}",
+             _covered_line()]
     if recovered:
         lines.append(f"recovered: {recovered}")
     if result.backup_dir:
@@ -225,8 +263,15 @@ def _pull(engine, rest: list[str]) -> str:
     if result.plugins_to_install:
         lines.append("plugins to install with `hermes plugins install`: "
                      + ", ".join(result.plugins_to_install))
-    lines.extend(result.notes)
-    return "Roam: " + _bullets(lines)
+    notes = list(result.notes)
+    text = "Roam: " + _bullets(lines)
+    # 0.4.2: apply notices are engine-authored long sentences (first-pull
+    # merge rules, kept key names) — wide-capped, never silently dropped.
+    if notes:
+        text += "\n" + "\n".join(
+            f"• {_short_note(note)}" for note in notes[:10]
+        )
+    return text
 
 
 def _diff(engine) -> str:
@@ -258,36 +303,51 @@ def _devices(engine) -> str:
     return "Roam fleet:\n" + _bullets(lines)
 
 
+def _covered_line() -> str:
+    """The covered-tree line every /roam result names: the ROOT home (a
+    profile context maps up to it) and each profile's sync state."""
+    state = settings.profile_sync_state()
+    summary = ", ".join(
+        f"{item['profile']}({'synced' if item['synced'] else 'excluded'})"
+        for item in state
+    ) or "none"
+    return f"covered root {settings.roam_home()} — profiles: {summary}"
+
+
 def _sessions() -> str:
     """Read-only listing of pulled session archives — NEVER a transcript.
 
     A transcript is remote-sourced text and must never be bulk-dumped into
     the model: this surface lists ids/titles (sanitized) and points at the
-    terminal command that prints one.
+    terminal command that prints one. Grouped by device, then by profile.
     """
     archive = roam_module("session_archive")
-    home = settings.hermes_home()
+    home = settings.roam_home()
     devices = archive.list_local_archive(home)
     if not devices:
         return ("Roam: no pulled session archives on this device; a device "
-                "that enables sync_sessions publishes its transcripts, and "
-                "`hermes roam pull --apply` receives them")
+                "that enables sync_sessions publishes the transcripts of "
+                "every profile of its root home, and `hermes roam pull "
+                "--apply` receives them")
     lines: list[str] = []
     for device in devices:
-        sessions = device.get("sessions") or []
-        lines.append(
-            f"{safe_device_name(device.get('device'))}: "
-            f"{len(sessions)} archived session(s) (read-only)"
-        )
-        shown = sessions[:5]
-        for session in shown:
+        for profile in device.get("profiles") or []:
+            sessions = profile.get("sessions") or []
             lines.append(
-                f"  {safe_session_id(session.get('session_id'))} "
-                f"{safe_title(session.get('title'), 80) or '(no title)'}"
+                f"{safe_device_name(device.get('device'))} / "
+                f"{safe_profile_name(profile.get('profile'))}: "
+                f"{len(sessions)} archived session(s) (read-only)"
             )
-        if len(sessions) > len(shown):
-            lines.append(f"  ... {len(sessions) - len(shown)} more")
-    lines.append("print one on the terminal: `hermes roam sessions show <device> <session_id>`")
+            shown = sessions[:5]
+            for session in shown:
+                lines.append(
+                    f"  {safe_session_id(session.get('session_id'))} "
+                    f"{safe_title(session.get('title'), 80) or '(no title)'}"
+                )
+            if len(sessions) > len(shown):
+                lines.append(f"  ... {len(sessions) - len(shown)} more")
+    lines.append("print one on the terminal: `hermes roam sessions show <device> "
+                 "<profile> <session_id>`")
     lines.append(archive.local_archive_note())
     return "Roam sessions:\n" + _bullets(lines)
 

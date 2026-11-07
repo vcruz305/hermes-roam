@@ -19,6 +19,7 @@ from .settings import roam_module
 from .tools import (
     safe_device_name,
     safe_error_text,
+    safe_profile_name,
     safe_relpath,
     safe_session_id,
     safe_status_error,
@@ -33,6 +34,11 @@ from .tools import (
 
 _MAX_LINES = 40
 _MAX_VALUE = 160
+# Engine-authored pull/push notices (kept key names, first-pull and
+# brand-new-device guidance) are long fixed sentences; 160 chars would cut
+# the guidance mid-command. They are engine-built, not free remote text —
+# key names are the only remote-influenced fragment and stay bounded.
+_NOTE_VALUE = 500
 _MAX_ERROR_CHARS = 300
 
 _RULES_TEMPLATE = """\
@@ -138,6 +144,9 @@ def add_cli_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         "show", help="print one archived transcript (read-only)"
     )
     sessions_show.add_argument("device", help="the device that published the session")
+    sessions_show.add_argument(
+        "profile", help="the profile the session ran under ('default' for the root home)"
+    )
     sessions_show.add_argument("session_id", help="the session id to print")
     sessions_show.add_argument("--json", action="store_true", help="print machine-readable JSON")
 
@@ -222,7 +231,9 @@ def _run(args: argparse.Namespace) -> int:
 def _cmd_status(engine, as_json: bool) -> int:
     status = engine.status()
     if as_json:
-        _json(sanitize_status_dict(status.to_dict()))
+        payload = sanitize_status_dict(status.to_dict())
+        payload.update(_covered_root_dict())
+        _json(payload)
         if status.remote_generation is None and status.error:
             return 1
         return 0
@@ -232,10 +243,14 @@ def _cmd_status(engine, as_json: bool) -> int:
         recovered = getattr(status, "recovered", None)
         if recovered:
             print(f"roam: recovered: {recovered}")
+        _print_covered_root()
         return 1
     local = status.local
+    root, summary, _ = _covered_tree()
     print(_row("device", status.device))
+    print(_row("root", root))
     print(_row("backend", status.backend))
+    print(_row("profiles", summary))
     opt_ins = getattr(status, "opt_ins", {}) or {}
     print(_row(
         "opt-ins",
@@ -314,7 +329,9 @@ def _cmd_push(engine, args: argparse.Namespace, as_json: bool) -> int:
         return 1
     result = engine.push(force=args.force, dry_run=args.dry_run)
     if as_json:
-        _json(sanitize_push_dict(result.to_dict()))
+        payload = sanitize_push_dict(result.to_dict())
+        payload.update(_covered_root_dict())
+        _json(payload)
         return 0
     recovered = getattr(result, "recovered", None)
     if recovered:
@@ -343,6 +360,7 @@ def _cmd_push(engine, args: argparse.Namespace, as_json: bool) -> int:
     print(f"roam: pushed generation {result.generation} "
           f"({result.file_count} files, {result.bundle_size} bytes)")
     print(f"roam: bundle {_short(result.bundle_key)}")
+    _print_covered_root()
     if notes:
         print(*notes, sep="\n")
     return 0
@@ -376,7 +394,9 @@ def _cmd_pull(engine, args: argparse.Namespace, as_json: bool) -> int:
     )
     result = engine.pull(**kwargs)
     if as_json:
-        _json(sanitize_pull_dict(result.to_dict()))
+        payload = sanitize_pull_dict(result.to_dict())
+        payload.update(_covered_root_dict())
+        _json(payload)
         return 0
     conflicts, kept, recovered = _conflict_lines(result)
     plan = result.plan
@@ -389,9 +409,21 @@ def _cmd_pull(engine, args: argparse.Namespace, as_json: bool) -> int:
                 if lines:
                     print(*_cap(lines), sep="\n")
         # R11: the plan names every config merge and the unchanged files, so
-        # the user reviews what the apply will really do.
-        for path in sorted(getattr(plan, "configs", []) or []):
-            print(f"roam: would merge {safe_relpath(path)} (host-scoped keys stay local)")
+        # the user reviews what the apply will really do. Configs carry a
+        # 0.4.2 mode: a first-pull merge states the union rules.
+        for relpath, mode in sorted(
+            (entry[0], entry[1])
+            for entry in getattr(plan, "configs", []) or []
+            if isinstance(entry, (list, tuple)) and len(entry) == 2
+        ):
+            if mode == "first_pull":
+                print(
+                    f"roam: would first-pull merge {safe_relpath(relpath)} "
+                    "(remote-only shared keys added, local values win where "
+                    "both are set, host-scoped and secret keys stay local)"
+                )
+            else:
+                print(f"roam: would merge {safe_relpath(relpath)} (host-scoped keys stay local)")
         config_conflicts = [
             safe_relpath(path)
             for path in sorted(getattr(plan, "config_conflicts", []) or [])
@@ -413,12 +445,19 @@ def _cmd_pull(engine, args: argparse.Namespace, as_json: bool) -> int:
         if kept:
             print(f"roam: {len(kept)} remote file(s) your scope rules keep local:")
             print(*_cap(kept), sep="\n")
+        # 0.4.2/R11: the engine's plan notices — the kept local key names, the
+        # first-pull union rules and the brand-new-device guidance — must
+        # reach the plan review, not only the apply.
+        for note in getattr(result, "notes", []) or []:
+            print(f"roam: {_short(note, _NOTE_VALUE)}")
         if recovered:
             print(f"roam: recovered: {recovered}")
         print("roam: review the plan, then run `hermes roam pull --apply`")
         print("roam: --apply rewrites home files after making a backup")
+        _print_covered_root()
         return 0
     print(f"roam: installed remote generation {result.generation}")
+    _print_covered_root()
     if recovered:
         print(f"roam: recovered: {recovered}")
     if result.backup_dir:
@@ -435,7 +474,7 @@ def _cmd_pull(engine, args: argparse.Namespace, as_json: bool) -> int:
         print(_row("plugins", ", ".join(result.plugins_to_install)))
         print("roam: install them with `hermes plugins install <name>`")
     for note in result.notes:
-        print(f"roam: {_short(note)}")
+        print(f"roam: {_short(note, _NOTE_VALUE)}")
     return 0
 
 
@@ -519,32 +558,73 @@ def _human_size(size: int) -> str:
     return f"{size} B"
 
 
+def _covered_tree() -> tuple[str, str, list[dict]]:
+    """(root path, human summary, JSON list) of the ROOT home and every
+    profile's effective sync state under this device's rules — the
+    covered-tree disclosure every naming surface shows."""
+    root = settings.roam_home()
+    state = settings.profile_sync_state()
+    summary = ", ".join(
+        f"{item['profile']}({'synced' if item['synced'] else 'excluded'})"
+        for item in state
+    ) or "none"
+    return str(root), summary, [
+        {"profile": item["profile"], "synced": item["synced"]} for item in state
+    ]
+
+
+def _print_covered_root() -> None:
+    """Say which root and profiles the command covered (a profile context
+    maps up to the ROOT home; the CLI names the whole covered tree)."""
+    root, summary, _ = _covered_tree()
+    print(f"roam: covered root {root} — profiles: {summary}")
+
+
+def _covered_root_dict() -> dict:
+    """The covered-tree fields added to --json payloads."""
+    root, _, state = _covered_tree()
+    return {"covered_root": root, "profiles": state}
+
+
 def _sanitize_archive(devices: list) -> list:
     """The read-only archive listing with every remote-sourced field
-    sanitized: device names and session ids charset-checked, titles
-    scrubbed to one line (0.4.1)."""
+    sanitized: device names, profile names and session ids charset-checked,
+    titles scrubbed to one line. Grouped by device, then by profile."""
     out: list = []
     for device in devices or []:
         if not isinstance(device, dict):
             continue
-        sessions = []
-        for session in device.get("sessions") or []:
-            if not isinstance(session, dict):
+        profiles = []
+        for profile in device.get("profiles") or []:
+            if not isinstance(profile, dict):
                 continue
-            sessions.append(
+            sessions = []
+            for session in profile.get("sessions") or []:
+                if not isinstance(session, dict):
+                    continue
+                sessions.append(
+                    {
+                        "session_id": safe_session_id(session.get("session_id", "")),
+                        "title": safe_title(session.get("title", "")),
+                        "date": safe_title(session.get("date", ""), 40),
+                        "size": int(session.get("size") or 0),
+                    }
+                )
+            profiles.append(
                 {
-                    "session_id": safe_session_id(session.get("session_id", "")),
-                    "title": safe_title(session.get("title", "")),
-                    "date": safe_title(session.get("date", ""), 40),
-                    "size": int(session.get("size") or 0),
+                    "profile": safe_profile_name(profile.get("profile", "")),
+                    "sessions": sessions,
                 }
             )
-        out.append({"device": safe_device_name(device.get("device", "")), "sessions": sessions})
+        out.append(
+            {"device": safe_device_name(device.get("device", "")), "profiles": profiles}
+        )
     return out
 
 
 def _cmd_sessions(args: argparse.Namespace, as_json: bool) -> int:
-    """Read-only listing/printing of the session archives this device PULLED.
+    """Read-only listing/printing of the session archives this device PULLED,
+    grouped by device and by profile.
 
     The transcripts are remote-sourced text read back from disk: every
     identifier is charset-checked, every title is scrubbed, and a printed
@@ -552,9 +632,11 @@ def _cmd_sessions(args: argparse.Namespace, as_json: bool) -> int:
     resume, or re-push an archived session.
     """
     archive = roam_module("session_archive")
-    home = settings.hermes_home()
+    home = settings.roam_home()
     if getattr(args, "sessions_action", None) == "show":
-        text, error = archive.read_local_session(home, args.device, args.session_id)
+        text, error = archive.read_local_session(
+            home, args.device, args.profile, args.session_id
+        )
         if error:
             print(f"roam: {error}")
             return 1
@@ -563,6 +645,7 @@ def _cmd_sessions(args: argparse.Namespace, as_json: bool) -> int:
             _json(
                 {
                     "device": safe_device_name(args.device),
+                    "profile": safe_profile_name(args.profile),
                     "session_id": safe_session_id(args.session_id),
                     "note": archive.local_archive_note(),
                     "transcript": textsafe.clean_block(text),
@@ -578,24 +661,27 @@ def _cmd_sessions(args: argparse.Namespace, as_json: bool) -> int:
         return 0
     if not devices:
         print("roam: no pulled session archives on this device")
-        print("roam: a device that enables sync_sessions publishes its transcripts; "
-              "run `hermes roam pull --apply` to receive them")
+        print("roam: a device that enables sync_sessions publishes its transcripts "
+              "(every profile of its root home); run `hermes roam pull --apply` to "
+              "receive them")
         return 0
-    print("roam: pulled session archives (read-only)")
+    print("roam: pulled session archives (read-only, grouped by device then profile)")
     lines: list[str] = []
     for device in devices:
-        total = sum(session["size"] for session in device["sessions"])
-        lines.append(
-            f"{device['device']}: {len(device['sessions'])} session(s), "
-            f"{_human_size(total)} total"
-        )
-        for session in device["sessions"]:
+        for profile in device["profiles"]:
+            total = sum(session["size"] for session in profile["sessions"])
             lines.append(
-                f"  {session['session_id']}  {session['date'] or 'date unknown'}  "
-                f"{_human_size(session['size'])}  {session['title'] or '(no title)'}"
+                f"{device['device']} / {profile['profile']}: "
+                f"{len(profile['sessions'])} session(s), {_human_size(total)} total"
             )
+            for session in profile["sessions"]:
+                lines.append(
+                    f"  {session['session_id']}  {session['date'] or 'date unknown'}  "
+                    f"{_human_size(session['size'])}  {session['title'] or '(no title)'}"
+                )
     print(*_cap(lines), sep="\n")
-    print("roam: print one with `hermes roam sessions show <device> <session_id>`")
+    print("roam: print one with `hermes roam sessions show <device> <profile> "
+          "<session_id>`")
     print(f"roam: {archive.local_archive_note()}")
     return 0
 
@@ -614,18 +700,19 @@ def _cmd_init(args: argparse.Namespace, as_json: bool) -> int:
         "`hermes roam pull --apply`",
     )
     if as_json:
-        _json({"init": summary, "next_steps": list(steps)})
+        _json({"init": summary, "next_steps": list(steps), **_covered_root_dict()})
         return 0
     print(f"roam: {summary}")
     print("roam: next steps:")
     for index, step in enumerate(steps, 1):
         print(f"  {index}. {_short(step, 160)}")
     print("roam: never paste secret values into chat or files roam writes")
+    _print_covered_root()
     return 0
 
 
 def _cmd_rules(args: argparse.Namespace, as_json: bool) -> int:
-    home = settings.hermes_home()
+    home = settings.roam_home()
     rules_path = home / "roam" / "rules.yaml"
     if args.init:
         if rules_path.exists():
@@ -639,7 +726,7 @@ def _cmd_rules(args: argparse.Namespace, as_json: bool) -> int:
     entries = [(pattern, scope_value.value) for pattern, scope_value in rules.rules]
     host_keys = list(rules.host_keys)
     if as_json:
-        _json({"rules": entries, "host_keys": host_keys})
+        _json({"rules": entries, "host_keys": host_keys, **_covered_root_dict()})
         return 0
     defaults = {(pattern, value.value) for pattern, value in scope.DEFAULT_RULES}
     user = [entry for entry in entries if entry not in defaults]
@@ -678,6 +765,13 @@ def _cmd_rules(args: argparse.Namespace, as_json: bool) -> int:
         "hub-installed skills, plugin code trees, roam/rules.yaml itself, and "
         "everything under <home>/roam/ (including pulled read-only session "
         "archives)",
+        "",
+        "profiles and bots: every profiles/<name>/ travels as one tree with "
+        "the root home (profile.yaml, config.yaml, SOUL.md, memories/, "
+        "skills/, skins/, hermes-pack.yaml shared; .env, auth.json, "
+        "state.db and sessions/ local per profile) — exclude one with a "
+        "local: rule for profiles/<name>/ in this file",
     ])
     print(*_cap(lines), sep="\n")
+    _print_covered_root()
     return 0

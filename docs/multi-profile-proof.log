@@ -1,0 +1,191 @@
+Live two-home multi-profile proof — real Hermes 0.22.5, plugin built from
+this worktree (branch feat/multi-profile), local backend.
+
+Homes (scratch, deleted after the run):
+  A = <work>/roam-homes/mp-a   (device dev-a)
+  B = <work>/roam-homes/mp-b   (device dev-b)
+Shared store: <work>/roam-homes/mp-store (local backend)
+Fleet archive key: generated per `hermes roam init`'s instructions, written
+to both homes' .env, never printed.
+
+Every command ran as
+  cd <work> && HERMES_RUNTIME_DIR=<install tools> HERMES_HOME=<home> hermes ...
+
+--------------------------------------------------------------------------------
+1. Real profile creation on A (per-profile SOUL/memory/skill/config)
+--------------------------------------------------------------------------------
+$ hermes profile create bot1 --no-skills --description "support bot one"
+$ hermes profile create bot2 --no-skills --description "support bot two"
+  ...
+  Edit ~/work/roam-homes/mp-a/profiles/bot1/SOUL.md to customize personality
+
+$ hermes profile list
+  Profile          Model    Gateway   Alias   Distribution
+  ◆default         —        stopped   —       —
+   bot1            —        stopped   bot1    —
+   bot2            —        stopped   bot2    —
+
+$ ls -a profiles/bot1/
+  .env  .no-bundled-skills  SOUL.md  cron  home  logs  memories  plans
+  profile.yaml  sessions  skills  skins  workspace
+
+$ cat profiles/bot1/profile.yaml
+  description: support bot one
+  description_auto: false
+
+Per-profile content added by hand (bot1 shown; bot2 analogous):
+  profiles/bot1/SOUL.md, profiles/bot1/memories/MEMORY.md,
+  profiles/bot1/skills/bot1-greeter/SKILL.md, profiles/bot1/config.yaml
+
+Plugin installed from the worktree on both homes:
+  hermes plugins install file://<work>/hermes-roam-lanes/profiles --yes
+  hermes plugins enable hermes-roam
+
+--------------------------------------------------------------------------------
+2. Push from the ROOT home of A
+--------------------------------------------------------------------------------
+$ hermes roam init --create-remote
+  roam: created the generation-0 remote head on the local backend and registered device 'dev-a'
+  ...
+  roam: covered root <work>/roam-homes/mp-a — profiles: default(synced), bot1(synced), bot2(synced)
+
+$ hermes roam push
+  roam: pushed generation 1 (15 files, 4613 bytes)
+  roam: bundle bundles/000001-dev-a-61abe28cd95b.roam
+  roam: covered root <work>/roam-homes/mp-a — profiles: default(synced), bot1(synced), bot2(synced)
+  roam: published 0 session transcript(s) covering profile(s) none in this device's read-only archive namespace (archive/sessions/dev-a/)
+
+  The session-archive export loop ran Hermes's real `hermes sessions export`
+  once per home of the root (root as profile 'default', then bot1 and bot2);
+  the fresh scratch homes hold no sessions, so every export returned zero
+  transcripts. A failed export would have degraded the push with the fixed
+  "could not be exported ... keeps the previously published archive" notice
+  instead; none did.
+
+--------------------------------------------------------------------------------
+3. Pull on a fresh second home B: profiles arrive working and listable
+--------------------------------------------------------------------------------
+$ hermes roam pull            (plan)
+  would add shared profiles/bot1/SOUL.md
+  would add shared profiles/bot1/config.yaml
+  would add shared profiles/bot1/memories/MEMORY.md
+  would add shared profiles/bot1/profile.yaml
+  would add shared profiles/bot1/skills/autonomous-ai-agents/DESCRIPTION.md
+  would add shared profiles/bot1/skills/bot1-greeter/SKILL.md
+  would add shared profiles/bot2/SOUL.md
+  ... (same set for bot2)
+  roam: covered root <work>/roam-homes/mp-b — profiles: default(synced)
+
+$ hermes roam pull --apply
+  backup  <work>/roam-homes/mp-b/roam/backups/20261107-190529
+  roam: 10 file(s) written, 0 deleted
+
+$ hermes profile list
+  Profile          Model    Gateway   Alias   Distribution
+  ◆default         —        stopped   —       —
+   bot1            —        stopped   bot1    —
+   bot2            —        stopped   bot2    —            <-- arrived, listable
+
+$ cat profiles/bot1/profile.yaml
+  description: support bot one
+  description_auto: false
+$ ls profiles/bot1/
+  SOUL.md  memories  profile.yaml  skills
+$ cat profiles/bot2/memories/MEMORY.md
+  bot2 remembers: always cite evidence.
+
+  profiles/<name>/config.yaml follows the ruled config policy (host-scoped
+  keys stay local; a locally-changed config is never overwritten), exactly
+  like the top-level config.yaml. Per-profile .env stayed local: the fleet
+  key had to be (and was) provisioned in B's profile .env by hand.
+
+--------------------------------------------------------------------------------
+4. Roam INSIDE a profile context maps up to the ROOT home
+--------------------------------------------------------------------------------
+(plugin installed into profiles/bot1 as a real cloned-profile deployment has)
+
+$ HERMES_HOME=<work>/roam-homes/mp-b/profiles/bot1 hermes roam status
+  device       dev-b
+  root         <work>/roam-homes/mp-b        <-- the ROOT home, not the profile
+  backend      local
+  profiles     default(synced), bot1(synced), bot2(synced)
+  pushed       generation 0
+  pulled       generation 1
+  remote head  generation 1 by dev-a
+
+$ hermes -p bot1 roam status
+  device       dev-b
+  root         <work>/roam-homes/mp-b        <-- same root, same lock
+  profiles     default(synced), bot1(synced), bot2(synced)
+
+  The device name and every sync setting come from the ROOT home's
+  config.yaml; the profile's own config.yaml is never consulted for them.
+  Both profile-context forms share the ROOT home's roam lock, so concurrent
+  bots can never interleave generations.
+
+--------------------------------------------------------------------------------
+5. Per-profile exclusion is disclosed at every surface
+--------------------------------------------------------------------------------
+$ printf 'local:\n  - profiles/bot2/\n' > roam/rules.yaml   (on B)
+$ hermes roam status
+  root      <work>/roam-homes/mp-b
+  profiles  default(synced), bot1(synced), bot2(excluded)   <-- verdict shown
+
+$ hermes roam rules | tail -3
+  profiles and bots: every profiles/<name>/ travels as one tree with the root
+  home (profile.yaml, config.yaml, SOUL.md, memories/, skills/, skins/,
+  hermes-pack.yaml shared; .env, auth.json, state.db and sessions/ local per
+  profile) — exclude one with a local: rule for profiles/<name>/ in this file
+  roam: covered root <work>/roam-homes/mp-b — profiles: default(synced), bot1(synced), bot2(excluded)
+
+--------------------------------------------------------------------------------
+6. A profile that exists on one device only arrives on the other
+--------------------------------------------------------------------------------
+(on A) $ hermes profile create bot3 --no-skills --description "third bot, one device only"
+        $ hermes roam push
+  roam: pushed generation 2 (18 files, 5480 bytes)
+  roam: covered root <work>/roam-homes/mp-a — profiles: default(synced), bot1(synced), bot2(synced), bot3(synced)
+
+(on B) $ hermes roam pull --apply
+  roam: 3 file(s) written, 0 deleted
+        $ hermes profile list
+  ◆default
+   bot1  bot2  bot3                                     <-- bot3 arrived, listable
+        $ cat profiles/bot3/SOUL.md
+  You are bot3, created only on mp-a.
+
+--------------------------------------------------------------------------------
+7. Deleting the profile on A propagates the deletion to B
+--------------------------------------------------------------------------------
+(on A) $ hermes profile delete bot3   (confirmed interactively)
+  ✓ Removed <work>/roam-homes/mp-a/profiles/bot3
+        $ hermes roam push
+  roam: pushed generation 3 (15 files, 4650 bytes)
+  roam: covered root <work>/roam-homes/mp-a — profiles: default(synced), bot1(synced), bot2(synced)
+
+(on B) $ hermes roam pull --apply
+  roam: 0 file(s) written, 3 deleted
+        $ hermes profile list
+  ◆default
+   bot1  bot2                                          <-- bot3 is gone and unlistable
+
+  Only an empty skills/ directory remains under B's profiles/bot3/ (file-level
+  sync deletes files, not directories); the profile is no longer listable
+  because its identity files are gone. B never excluded the profile, so the
+  deletion by the device that could see it carried everywhere — the
+  carry-forward tests pin that a device that DID exclude a profile can never
+  delete it.
+
+--------------------------------------------------------------------------------
+8. Health and the sessions surface
+--------------------------------------------------------------------------------
+$ hermes roam doctor
+  roam: 9/9 checks passed
+
+$ hermes roam sessions
+  roam: no pulled session archives on this device
+  roam: a device that enables sync_sessions publishes its transcripts (every profile of its root home); run `hermes roam pull --apply` to receive them
+
+  (no scratch home ever held a real session, so the live archive stayed
+  empty; the per-profile export, cap, namespace, listing, and read paths are
+  covered by tests/test_multi_profile.py and tests/test_session_archive.py)

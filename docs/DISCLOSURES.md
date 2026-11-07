@@ -128,12 +128,27 @@ explicitly accepted with the reason given; nothing is hidden.
 12. **0.4.1 session-export subprocess, disclosed.** With `sync_sessions`
    enabled, a push runs Hermes's own documented export as an argv
    subprocess — `hermes sessions export <tmpdir> --format md --redact
-   --after 2000-01-01 --force` — with `HERMES_HOME` set to the active home,
-   stdin closed, and a hard timeout inside the armed operation deadline; it
-   never uses a shell and the path asks no prompts. The transcripts are
-   capped (`sessions_max_mb`, default 50 MB, newest first) and published
-   under the pushing device's own namespace only. Hermes's `--redact` pass
-   is best-effort pattern matching: an archived transcript may still
-   contain anything the user typed, which the README states plainly. If
-   the export fails, the push degrades to a clear notice, everything else
-   still syncs, and the previously published archive is kept.
+   --after 2000-01-01 --force` — with `HERMES_HOME` set to the home being
+   exported, stdin closed, and a hard timeout inside the armed operation
+   deadline; it never uses a shell and the path asks no prompts. The
+   transcripts are capped (`sessions_max_mb`, default 50 MB, globally
+   newest first) and published under the pushing device's own namespace
+   only. Hermes's `--redact` pass is best-effort pattern matching: an
+   archived transcript may still contain anything the user typed, which
+   the README states plainly. If the export fails, the push degrades to a
+   clear notice, everything else still syncs, and the previously
+   published archive is kept.
+
+13. **0.4.2 multi-profile: one disclosed export per home of the ROOT
+   home.** The export subprocess above runs once per home — the ROOT home
+   itself (published as profile `default`) and each `profiles/<name>/`
+   — with `HERMES_HOME` set to that home for the run, each under the same
+   hard timeout inside the shared operation deadline, and every
+   transcript lands under `archive/sessions/<device>/<profile>/`. The
+   cap is ONE shared budget across all profiles (globally newest first,
+   established at the cap itself, never at an individual export's
+   ordering). Any per-profile failure fails the whole archive publish the
+   same way item 12 describes: a clear notice, the push of everything else
+   still succeeds, and the previously published archive is kept. No
+   profile context can narrow the export to its own sessions or publish
+   into another device's or profile's namespace.

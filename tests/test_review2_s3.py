@@ -394,8 +394,9 @@ def test_f6_surfaces_name_the_config_merge(plugin, fake_engine, capsys) -> None:
     the surfaces. The pull plan the user is told to review must include the
     config.yaml merge the apply will perform, so once the engine reports a
     config merge every surface prints 'would merge config.yaml (host-scoped
-    keys stay local)' instead of hiding it."""
-    fake_engine.pull_configs = ["config.yaml"]
+    keys stay local)' instead of hiding it. 0.4.2: a first_pull mode merge
+    prints the union rules instead."""
+    fake_engine.pull_configs = [("config.yaml", "merge")]
     slash = plugin.commands.handle("pull")
     assert "would merge config.yaml (host-scoped keys stay local)" in slash, (
         "the slash plan must name the config merge the apply performs"
@@ -408,7 +409,7 @@ def test_f6_surfaces_name_the_config_merge(plugin, fake_engine, capsys) -> None:
         "the CLI plan must name the config merge the apply performs"
     )
     payload = json.loads(plugin.tools.roam_pull({}))
-    assert "config.yaml" in payload["pull"]["plan"]["configs"], (
+    assert ["config.yaml", "merge"] in payload["pull"]["plan"]["configs"], (
         "the tool JSON plan must carry the config merge"
     )
 

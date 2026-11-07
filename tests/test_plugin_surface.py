@@ -309,8 +309,10 @@ def test_cli_parser_builds(plugin):
     assert (args.force, args.dry_run) == (True, True)
     args = cli_args(plugin, "sessions")
     assert args.command == "sessions"
-    args = cli_args(plugin, "sessions", "show", "dev-a", "sess-1")
-    assert (args.sessions_action, args.device, args.session_id) == ("show", "dev-a", "sess-1")
+    args = cli_args(plugin, "sessions", "show", "dev-a", "default", "sess-1")
+    assert (args.sessions_action, args.device, args.profile, args.session_id) == (
+        "show", "dev-a", "default", "sess-1",
+    )
 
 
 def test_cli_status_json(plugin, fake_engine, capsys):
@@ -432,23 +434,40 @@ def test_surfaces_reject_hostile_manifest_paths(plugin, fake_engine, capsys):
 def test_plan_surfaces_list_config_merges_conflicts_and_unchanged(plugin, fake_engine, capsys):
     """R11: every surface prints the config merges, the config conflicts and
     the unchanged count the engine reports — the plan the user reviews is
-    the plan the apply performs, not a subset of it."""
-    fake_engine.pull_configs = ["config.yaml"]
+    the plan the apply performs, not a subset of it. 0.4.2: configs carry a
+    mode (merge / first_pull), the first-pull line says the union rules, and
+    the engine's plan notices (kept keys, brand-new-device guidance) reach
+    the plan review too."""
+    fake_engine.pull_configs = [("config.yaml", "first_pull")]
+    fake_engine.pull_notes = [
+        "config.yaml has never been synced here; the merge is a union: "
+        "kept local: model.provider; push from this device to publish them, "
+        "or pull with --overwrite-conflicts to take the remote values",
+        "this device has never synced with this remote; if it is a brand-new "
+        "device whose local files are only Hermes's fresh seed content, run "
+        "`hermes roam pull --apply --overwrite-conflicts` to take the remote "
+        "home (a backup of everything replaced is kept)",
+    ]
     fake_engine.pull_unchanged = ["SOUL.md", "skills/keep/SKILL.md"]
     fake_engine.pull_config_conflicts = ["config.yaml"]
     slash = plugin.commands.handle("pull")
-    assert "would merge config.yaml (host-scoped keys stay local)" in slash
+    assert "would first-pull merge config.yaml" in slash
+    assert "local values win where both" in slash
+    assert "kept local: model.provider" in slash
+    assert "--overwrite-conflicts` to take the remote home" in slash
     assert "2 file(s) unchanged" in slash
     assert "1 config file(s) changed here AND on the remote" in slash
     code = plugin.cli.handler(cli_args(plugin, "pull"))
     out = capsys.readouterr().out
     assert code == 0
-    assert "would merge config.yaml (host-scoped keys stay local)" in out
+    assert "would first-pull merge config.yaml" in out
+    assert "kept local: model.provider" in out
+    assert "--overwrite-conflicts` to take the remote home" in out
     assert "2 file(s) unchanged" in out
     assert "1 config file(s) changed here AND on the remote" in out
     payload = json.loads(plugin.tools.roam_pull({}))
     plan = payload["pull"]["plan"]
-    assert plan["configs"] == ["config.yaml"]
+    assert plan["configs"] == [["config.yaml", "first_pull"]]
     assert plan["config_conflicts"] == ["config.yaml"]
     assert plan["unchanged"] == ["SOUL.md", "skills/keep/SKILL.md"]
 
@@ -614,7 +633,11 @@ def test_cli_rules_json_shape(plugin, monkeypatch, tmp_path, capsys):
     code = plugin.cli.handler(cli_args(plugin, "rules", "--json"))
     assert code == 0
     out = json.loads(capsys.readouterr().out)
-    assert set(out) == {"rules", "host_keys"}
+    assert set(out) == {"rules", "host_keys", "covered_root", "profiles"}
+    assert out["covered_root"] == str(tmp_path)
+    assert ({"profile": "default", "synced": True},) == tuple(
+        entry for entry in out["profiles"]
+    ), "rules must list the root home ('default') with its sync state"
     assert ("plugins/**", "local") in [tuple(e) for e in out["rules"]]
     assert ("skills/", "shared") in [tuple(e) for e in out["rules"]]
     assert "terminal" in out["host_keys"]

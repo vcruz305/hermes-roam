@@ -216,10 +216,13 @@ class FakeEngine:
         self.pull_skipped_local: list[str] = []
         self.pull_recovered: str | None = None
         # R11 surface knobs: the pre-agreed plan fields the surfaces must
-        # display (config merges, unchanged files, config conflicts).
-        self.pull_configs: list[str] = []
+        # display (config merges, unchanged files, config conflicts); the
+        # configs are [relpath, mode] pairs (0.4.2) and the notes mirror the
+        # engine's plan notices.
+        self.pull_configs: list[tuple[str, str]] = []
         self.pull_unchanged: list[str] = []
         self.pull_config_conflicts: list[str] = []
+        self.pull_notes: list[str] = []
         # R9: what lock_holder() reports (None = the lock is free); the
         # auto-push hook skips instead of waiting when this is set.
         self.lock_holder_info: dict | None = None
@@ -273,7 +276,7 @@ class FakeEngine:
             backup_dir="",
             config_merged=False,
             plugins_to_install=["some-plugin"],
-            notes=[],
+            notes=list(self.pull_notes),
             conflicts=list(self.pull_conflicts),
             skipped_local=list(self.pull_skipped_local),
             recovered=self.pull_recovered,

@@ -49,8 +49,12 @@ the defaults are an ALLOWLIST — an unknown file can never leak into a bundle.
 
 - `skills/`, `memories/`, `SOUL.md`, `skins/`, `hermes-pack.yaml` — your
   written content, at the top level and inside every `profiles/*/`.
+- `profile.yaml` — Hermes's per-profile metadata (description, display
+  name, bot roster title): non-secret, and one of the markers Hermes needs
+  to list a profile at all. A root home has none.
 - `config.yaml` — with every host-specific key stripped on push and kept
-  local on pull (see the merging section below).
+  local on pull (see the merging section below); the top-level file and
+  every `profiles/*/config.yaml`.
 - `roam/installed-plugins.json` — the pinned list of plugin *names and
   commit shas* so the other device reinstalls plugin code from its source,
   never from the bundle.
@@ -64,15 +68,18 @@ the defaults are an ALLOWLIST — an unknown file can never leak into a bundle.
   hermes config set plugins.entries.hermes-roam.settings.sync_sessions true
   ```
 
-  It does: export this home's sessions with Hermes's own
-  `hermes sessions export --format md --redact` and publish the transcripts
-  under this device's private bundle namespace (`archive/sessions/<device>/`),
-  capped at `sessions_max_mb` (default 50 MB, newest transcripts first). It
+  It does: export the sessions of EVERY home of the root — the root home
+  itself (namespace `default`) and each `profiles/<name>/` — with Hermes's
+  own `hermes sessions export --format md --redact`, one run per home, and
+  publish the transcripts under this device's private bundle namespace
+  (`archive/sessions/<device>/<profile>/`), under ONE shared cap of
+  `sessions_max_mb` (default 50 MB, globally newest transcripts first). It
   does not: sync the raw `sessions/` folder (request dumps are always
   local), resume or re-run anything, or let another device replace this
   device's namespace. Other devices that pull receive the archive
-  read-only under `<home>/roam/session-archive/<device>/` — reading needs no
-  opt-in, only publishing does — and list it with `hermes roam sessions`;
+  read-only under `<home>/roam/session-archive/<device>/<profile>/` —
+  reading needs no opt-in, only publishing does — and list it with
+  `hermes roam sessions`, grouped by device and profile;
   a pulled archive can never be re-pushed, and archived sessions can never
   be resumed. Only finished sessions are exported (Hermes's export skips a
   session that is still open, such as a running gateway chat); it is picked
@@ -100,10 +107,12 @@ The only lever that can ever extend the allowlist is an explicit per-device
 `<home>/roam/` tree is pinned against even that.
 
 - Secrets: `.env`, `auth.json`, `auth.json.*`, and every other credential
-  file.
+  file — the root home's and every profile's (a profile's `.env` never
+  travels; provision the fleet key in each profile by hand).
 - The live session database `state.db` and its sidecars — real session
   history is machine-local; only the opt-in archive above ever publishes a
-  transcript, and only as read-only markdown.
+  transcript, and only as read-only markdown. The per-profile session
+  databases and `sessions/` folders are local the same way.
 - The raw `sessions/` folders (top level and per profile): in Hermes 0.22.5
   they hold redacted `request_dump_*.json` debug files, not transcripts.
 - Caches and logs: `cache/`, `audio_cache/`, `image_cache/`, `logs/`,
@@ -126,7 +135,60 @@ The only lever that can ever extend the allowlist is an explicit per-device
 
 `hermes roam status` shows the on/off state of every optional item;
 `hermes roam rules` prints the same three tiers against this device's
-effective rules.
+effective rules. Both also name the ROOT home a command covers and list
+every profile with its `synced`/`excluded` state.
+
+## Profiles and bots
+
+Hermes runs named profiles and bots under `profiles/<name>/` — each with
+its own `SOUL.md`, `memories/`, `skills/`, `skins/`, `config.yaml`, and
+local `.env`/`sessions/` — and a multi-profile gateway serves several of
+them from one process. Roam treats them as first-class fleet members:
+
+- **Profiles travel as working profiles.** One store holds the whole
+  tree: the root home plus every `profiles/<name>/`, with
+  profile-relative paths (`profiles/bot1/SOUL.md`, never a top-level
+  `SOUL.md`). The shared allowlist is re-applied inside each profile, so a
+  pulled profile arrives with its identity (`profile.yaml`), soul,
+  memories, skills, and skins intact and is listable by
+  `hermes profile list` on the other device, while its `.env`, session
+  database, and `sessions/` folder stay machine-local. Plugin code still
+  never travels: a pulled profile needs its plugins installed from source
+  on the receiving device (`roam/installed-plugins.json` carries the
+  pinned names).
+- **Roam always operates on the ROOT home.** Under a profile context
+  (`hermes -p NAME` or a profile `HERMES_HOME`), every roam surface maps
+  up to `<root>` by path structure and covers the whole tree — it never
+  publishes a profile's files as top-level paths. The sync settings, the
+  device name, and `allow_agent_apply` come from the ROOT home's
+  `config.yaml`, never from the profile's own config; all profile contexts
+  share the ROOT home's lock, so concurrent bots can never interleave
+  generations. Every command names the covered root and the per-profile
+  synced/excluded state in its output.
+- **The session archive covers every profile.** With `sync_sessions` on,
+  the export runs once per home of the root and lands in
+  `archive/sessions/<device>/<profile>/` (the root home's own sessions are
+  profile `default`); one shared cap, globally newest first;
+  `hermes roam sessions` and `/roam sessions` group the listing by device
+  and profile.
+- **Excluding one profile is a one-liner**: put
+  `local:\n  - profiles/NAME/` in that device's `roam/rules.yaml`. The
+  profile's files are neither pulled nor deleted there, and the exclusion
+  shows as `NAME(excluded)` in every status/rules listing. A device that
+  excluded a profile can never delete it: its pushes carry the profile's
+  fleet state forward byte-identical, so only a device that can see the
+  profile can delete it — and that deletion then propagates everywhere
+  the profile is visible.
+
+A live two-home run of the whole flow — creation with real Hermes 0.22.5,
+push, pull, listability, profile-context behavior, exclusion, arrival, and
+deletion — is captured verbatim in
+[docs/multi-profile-proof.log](docs/multi-profile-proof.log), and the merged
+0.5.0 release run — default plus work and personal profiles, per-profile
+first-pull config union, per-profile session export, grouped archive listing,
+profile-context root reporting, and the exit-2 stale-push refusal, on a bare
+git remote — is captured verbatim in
+[docs/proof-0.5.0.log](docs/proof-0.5.0.log).
 
 ## Quick start (60 seconds)
 
@@ -168,8 +230,22 @@ hermes roam pull --apply    # installs after backing up replaced files
 ```
 
 Host-specific keys in the local `config.yaml` survive the pull; the shared
-parts (model settings, skills, memories, SOUL) arrive. The bundled
-`roam-setup` skill walks a user through all of this in chat.
+parts (model settings, skills, memories, SOUL) arrive. On a device's FIRST
+pull — a machine that has never accepted a shared `config.yaml` — the config
+merge is a union: every shared key the local file lacks arrives, every local
+value wins where both sides set the same key (the pull lists those keys and
+tells you to push to publish them), and host-scoped, secret-looking and
+roam-plugin keys stay local either way. The same union applies to every
+synced `profiles/NAME/config.yaml`. If the second machine is BRAND NEW
+and its only local files are Hermes's fresh seed content (e.g. the seeded
+default `SOUL.md`), take the remote home wholesale instead of resolving each
+seeded file by hand:
+
+```sh
+hermes roam pull --apply --overwrite-conflicts   # remote wins; backups kept
+```
+
+The bundled `roam-setup` skill walks a user through all of this in chat.
 
 ## What syncs and what stays local
 
@@ -231,7 +307,19 @@ local values for them are kept and everything else comes from the remote:
 config value that is an absolute path under a user home directory
 (`/root/...`, `/home/...`, `/Users/...`, `C:\Users\...`) is detected and
 treated as host-scoped without being listed — it is stripped on push and the
-local value wins on pull.
+local value wins on pull. The same is true of any secret-looking key name or
+credential-looking value: secrets never travel in either direction.
+
+On a device's FIRST pull — before it has ever accepted a shared config
+projection — the merge is a UNION, not a remote takeover: shared keys the
+local file lacks are added, every local value wins where both sides set the
+same key (the pull names those keys and tells you to push to publish them or
+to pull with `--overwrite-conflicts` to take the remote values), and the
+host-scoped/secret rules above apply unchanged. This contract covers EVERY
+synced config in the tree — the top-level `config.yaml` and each
+`profiles/NAME/config.yaml` alike. From the second pull on, the
+three-way contract applies: remote-only shared changes merge, local-only
+changes stay local until pushed, and both-sides changes conflict.
 
 ### Overriding the scope rules
 
@@ -311,11 +399,19 @@ loser is told to pull.
 the last synced bundle managed that is now missing locally is a local
 deletion, not an accident: if the remote also changed it, that is a conflict
 kept local like any other; otherwise the deletion stands and this device's
-next push publishes it. `config.yaml` is compared by its shared projection:
-a local-only change is kept (and published by the next push), a remote-only
+next push publishes it. `config.yaml` is compared by its shared projection
+against the last projection this device actually ACCEPTED — never against a
+bundle it merely downloaded or reviewed — so a refused or plan-only pull
+cannot turn a later remote change into a phantom local-only change (0.4.2).
+A local-only change is kept (and published by the next push), a remote-only
 change is merged as described below, and a file that changed on both sides is
 a config conflict — kept local, listed by name in the plan, and overwritten
-only with `--overwrite-conflicts`. The pull plan states all of this before
+only with `--overwrite-conflicts`. A device with NO accepted projection (a
+first pull) merges as a union instead: shared keys the local file lacks are
+added, local values win where both sides set the same key and are listed by
+name, and `--overwrite-conflicts` takes the remote shared projection
+wholesale — for the top-level `config.yaml` and for every synced
+`profiles/NAME/config.yaml` alike. The pull plan states all of this before
 anything is written: it lists the config files it would merge, the config
 conflicts it would keep local, the unchanged files it will not rewrite, and
 every added, changed or removed path.

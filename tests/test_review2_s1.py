@@ -333,7 +333,7 @@ def test_t4_carry_forward_guard_laundering(tmp_path, monkeypatch) -> None:
     home_z = make_home(tmp_path, "home-z")
     engine_z = mk_engine(home_z, "dev-z", backend, sync_sessions=True)
     engine_z.pull(apply=True)
-    assert (home_z / "roam/session-archive/dev-a/s1.md").is_file()
+    assert (home_z / "roam/session-archive/dev-a/default/s1.md").is_file()
 
     # X never opted in; its push must carry A's archive forward.
     home_x = make_home(tmp_path, "home-x")
@@ -353,13 +353,13 @@ def test_t4_carry_forward_guard_laundering(tmp_path, monkeypatch) -> None:
     # Z's read-only copy survived every intermediate push.
     pair = backend.get_head()
     files = head_mod.verify_head(pair[0], KEY).files
-    assert "archive/sessions/dev-a/s1.md" in files, (
+    assert "archive/sessions/dev-a/default/s1.md" in files, (
         "a push by a device that cannot see A's archive dropped it from "
         "the signed head: every device's next pull would lose A's "
         "published archive"
     )
     result = engine_z.pull(apply=True)
-    assert (home_z / "roam/session-archive/dev-a/s1.md").is_file(), (
+    assert (home_z / "roam/session-archive/dev-a/default/s1.md").is_file(), (
         "Z's pulled read-only session archive was wiped by an intermediate "
         f"push: {json.dumps(result.to_dict())}"
     )

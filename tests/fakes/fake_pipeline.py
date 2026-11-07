@@ -230,14 +230,25 @@ def strip_host_keys(config_text: str, host_keys) -> str:
     return yaml.safe_dump(pruned, sort_keys=False) if pruned else ""
 
 
-def merge_config(remote_text: str, local_text: str, host_keys) -> str:
-    """Remote wins, except host-scoped leaves where the local value always survives."""
+def merge_config(remote_text: str, local_text: str, host_keys, *, first_pull: bool = False) -> str:
+    """Remote wins, except host-scoped leaves where the local value always
+    survives. With ``first_pull`` the union keeps local precedence instead:
+    local wins everywhere and the remote contributes only missing
+    non-host-scoped leaves (the 0.4.2 first-pull contract)."""
     remote = yaml.safe_load(remote_text) or {}
     local = yaml.safe_load(local_text) or {}
     if not isinstance(remote, dict):
         remote = {}
     if not isinstance(local, dict):
         local = {}
+    if first_pull:
+        result = json.loads(json.dumps(local))  # deep copy without yaml aliasing
+        for path, value in _iter_leaves(remote):
+            if _is_host_scoped(path, value, host_keys):
+                continue
+            if _get_path(result, path) is None:
+                _set_path(result, path, value)
+        return yaml.safe_dump(result, sort_keys=False) if result else ""
     result = json.loads(json.dumps(remote))  # deep copy without yaml aliasing
     remote_leaves = list(_iter_leaves(result))
     for path, value in remote_leaves:

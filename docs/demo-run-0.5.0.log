@@ -1,0 +1,533 @@
+# hermes-roam 0.5.0 — full demo run under real Hermes 0.22.5 (sanitized log)
+#
+# scripts/demo-two-homes.sh /tmp/roam-demo-050b — exit code 0.
+# Stages: 1 local backend (push/pull, secrets, conflicts, deletions, shared
+# config keys, per-device rules.yaml), 2 git backend round trip, 3 history +
+# restore, 4 the 0.4.1 opt-in session archive on a fresh local pair
+# (nothing travels with the opt-in off; an opted-in push publishes; the peer
+# pulls the archive read-only (0444), lists and prints it; a device that
+# never opts in never publishes its own sessions; roam status shows the
+# opt-ins), 5 the 0.5.0 multi-profile contract on a fresh local pair: a
+# REAL `hermes profile create` profile with its own soul, memory, skill and
+# config and a real imported per-profile session is pushed by one device
+# (the push names the covered root and publishes both profiles'
+# transcripts), a brand-new device pulls it (the plan carries the
+# brand-new-device notice and the covered root), the profile arrives
+# listable with its content, the first-pull config union brings the shared
+# model keys into the root AND profile configs while the fresh device's own
+# api_key stays, the grouped archive listing shows eps/default and
+# eps/work and `sessions show` prints the per-profile transcript, and
+# `hermes -p work roam status` maps up to the ROOT home. The demo key and
+# the redacted api_key markers are placeholders; no secret is printed.
+# Every 'verified:' line marks an assertion that passed; there are no FAIL
+# lines.
+
+
+
+=== stage 0 — fixtures ===
+✓ Plugin hermes-roam enabled.
+
+✓ Plugin hermes-roam enabled.
+
+
+=== stage 1 — local backend: alpha pushes ===
+roam: bundle bundles/000001-alpha-a8f7c8821cd6.roam
+roam: covered root /tmp/roam-demo-050b/alpha — profiles: default(synced), p(synced)
+
+=== stage 1 — beta pulls ===
+  5. on the second device: `hermes roam pull`, review, then `hermes roam pull --apply`
+roam: never paste secret values into chat or files roam writes
+roam: covered root /tmp/roam-demo-050b/beta — profiles: default(synced)
+pull preview: would add shared memories/MEMORY.md
+pull preview: would add shared profiles/p/config.yaml
+pull preview: would update shared SOUL.md
+roam: installed remote generation 1
+roam: covered root /tmp/roam-demo-050b/beta — profiles: default(synced), p(synced)
+backup       /tmp/roam-demo-050b/beta/roam/backups/20261107-202256
+roam: 1 file(s) kept local (changed here since last sync):
+kept local (changed here since last sync): SOUL.md
+roam: run `hermes roam pull --apply --overwrite-conflicts` to overwrite them (a backup is kept)
+roam: 1 remote file(s) kept local by your scope rules:
+kept local by your scope rules: roam/installed-plugins.json
+roam: profiles/p/config.yaml: never synced here; the remote's shared keys are added; host-scoped and secret keys stay local
+roam: 1 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: would first-pull merge profiles/p/config.yaml (remote-only shared keys added, local values win where both are set, host-scoped and secret keys stay local)
+roam: 1 path(s) changed locally since the last sync and remotely at the same time (conflicts) were kept local: SOUL.md; resolve by pushing (this device's version wins) or by pulling with overwrite after reviewing the backup
+roam: this device has never synced with this remote; if it is a brand-new device whose local files are only Hermes's fresh seed content, run `hermes roam pull --apply --overwrite-conflicts` to take the remote home (a backup of everything replaced is kept)
+roam: 2 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: config.yaml first-pull merged: the remote's shared keys were added where the local file lacked them, local values won for shared keys both sides set, and host-scoped and secret keys stayed local
+roam: 1 file(s) written, 0 deleted
+verified: shared memory installed; host keys and .env untouched; the diverging local SOUL.md kept and listed
+
+=== stage 1 — secrets in config.yaml and profile configs never travel ===
+verified: api_key stripped on the way; the rest of the config merged
+
+=== stage 1 — conflict: both homes edit the same skill ===
+roam: bundle bundles/000002-alpha-fcb31cca2250.roam
+roam: covered root /tmp/roam-demo-050b/alpha — profiles: default(synced), p(synced)
+roam: the remote head is at generation 2 but this device last saw 1; pull first (or push with --force)
+roam: the remote head moved ahead — run `hermes roam pull` first
+verified: push without pulling is refused (remote ahead)
+
+=== stage 1 — pull --apply keeps the local edit and lists it ===
+roam: installed remote generation 2
+roam: covered root /tmp/roam-demo-050b/beta — profiles: default(synced), p(synced)
+roam: 2 file(s) kept local (changed here since last sync):
+kept local (changed here since last sync): SOUL.md
+kept local (changed here since last sync): skills/demo-skill/SKILL.md
+roam: run `hermes roam pull --apply --overwrite-conflicts` to overwrite them (a backup is kept)
+roam: 1 remote file(s) kept local by your scope rules:
+kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 2 path(s) changed locally since the last sync and remotely at the same time (conflicts) were kept local: SOUL.md, skills/demo-skill/SKILL.md; resolve by pushing (this device's version wins) or by pulling with overwrite after reviewing the backup
+roam: 3 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+verified: local edit kept and listed
+
+=== stage 1 — pull --apply --overwrite-conflicts replaces it, with a backup ===
+roam: installed remote generation 2
+roam: covered root /tmp/roam-demo-050b/beta — profiles: default(synced), p(synced)
+backup       /tmp/roam-demo-050b/beta/roam/backups/20261107-202303
+roam: 1 remote file(s) kept local by your scope rules:
+kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 3 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 2 file(s) written, 0 deleted
+verified: remote copy installed; the local edit is in roam/backups
+
+=== stage 1 — resolution: beta restores its edit and pushes; alpha pulls ===
+roam: bundle bundles/000003-beta-27812057c0ec.roam
+roam: covered root /tmp/roam-demo-050b/beta — profiles: default(synced), p(synced)
+roam: installed remote generation 3
+roam: covered root /tmp/roam-demo-050b/alpha — profiles: default(synced), p(synced)
+backup       /tmp/roam-demo-050b/alpha/roam/backups/20261107-202306
+roam: 1 remote file(s) kept local by your scope rules:
+kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 4 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 1 file(s) written, 0 deleted
+alpha        pushed 2 pulled 0 hermes 0.22.5
+beta         pushed 3 pulled 2 hermes 0.22.5
+local dirty  0 shared files changed — nothing to push
+fleet        2 devices
+
+=== stage 1 — a local deletion propagates ===
+roam: bundle bundles/000004-alpha-2188f42f4f06.roam
+roam: covered root /tmp/roam-demo-050b/alpha — profiles: default(synced), p(synced)
+roam: installed remote generation 4
+roam: covered root /tmp/roam-demo-050b/beta — profiles: default(synced), p(synced)
+backup       /tmp/roam-demo-050b/beta/roam/backups/20261107-202313
+roam: 1 remote file(s) kept local by your scope rules:
+kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 4 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 1 deleted
+verified: the deletion propagated; the removed content is preserved in beta's roam/backups
+
+=== stage 1 — a shared config key edited on ONE device propagates ===
+roam: installed remote generation 4
+roam: covered root /tmp/roam-demo-050b/beta — profiles: default(synced), p(synced)
+roam: 1 remote file(s) kept local by your scope rules:
+kept local by your scope rules: roam/installed-plugins.json
+roam: config.yaml: changed locally since the last sync; kept local (push from this device to publish it)
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 3 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+roam: bundle bundles/000005-beta-993cb64e1af8.roam
+roam: covered root /tmp/roam-demo-050b/beta — profiles: default(synced), p(synced)
+roam: installed remote generation 5
+roam: covered root /tmp/roam-demo-050b/alpha — profiles: default(synced), p(synced)
+backup       /tmp/roam-demo-050b/alpha/roam/backups/20261107-202319
+roam: 1 remote file(s) kept local by your scope rules:
+kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: would merge config.yaml (host-scoped keys stay local)
+roam: 3 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: config.yaml merged; host-scoped keys kept from the local config
+roam: 0 file(s) written, 0 deleted
+verified: the shared key propagated; both devices kept their own api_key and terminal theme
+
+=== stage 1 — roam/rules.yaml stays per-device ===
+roam: nothing to push (nothing to push)
+roam: installed remote generation 5
+roam: covered root /tmp/roam-demo-050b/beta — profiles: default(synced), p(synced)
+roam: 1 remote file(s) kept local by your scope rules:
+kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 4 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+verified: rules.yaml never travels; the narrowed push left both local SOUL.md files untouched
+
+=== stage 2 — git backend: fresh remote, alpha migrates and pushes ===
+  5. on the second device: `hermes roam pull`, review, then `hermes roam pull --apply`
+roam: never paste secret values into chat or files roam writes
+roam: covered root /tmp/roam-demo-050b/alpha — profiles: default(synced), p(synced)
+roam: bundle bundles/000001-alpha-313551bdb783.roam
+roam: covered root /tmp/roam-demo-050b/alpha — profiles: default(synced), p(synced)
+
+=== stage 2 — beta migrates, pulls, then pushes back ===
+  5. on the second device: `hermes roam pull`, review, then `hermes roam pull --apply`
+roam: never paste secret values into chat or files roam writes
+roam: covered root /tmp/roam-demo-050b/beta — profiles: default(synced), p(synced)
+roam: installed remote generation 1
+roam: covered root /tmp/roam-demo-050b/beta — profiles: default(synced), p(synced)
+roam: 1 remote file(s) kept local by your scope rules:
+kept local by your scope rules: roam/installed-plugins.json
+roam: 1 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 4 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+roam: bundle bundles/000002-beta-15fbc2fb9573.roam
+roam: covered root /tmp/roam-demo-050b/beta — profiles: default(synced), p(synced)
+
+=== stage 2 — alpha pulls beta's git-backend generation ===
+roam: installed remote generation 2
+roam: covered root /tmp/roam-demo-050b/alpha — profiles: default(synced), p(synced)
+backup       /tmp/roam-demo-050b/alpha/roam/backups/20261107-202338
+roam: 1 remote file(s) kept local by your scope rules:
+kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 3 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 1 file(s) written, 0 deleted
+alpha        pushed 1 pulled 0 hermes 0.22.5
+beta         pushed 2 pulled 1 hermes 0.22.5
+verified: secrets never crossed the git backend either
+
+=== stage 3 — history: the remote store keeps every pushed generation ===
+roam: 2 recoverable version(s) in the remote store (newest first)
+gen 2 beta 2026-11-07 7772721a2130 64B present SOUL.md
+gen 1 alpha 2026-11-07 8abcffcf4c34 29B present SOUL.md
+roam: recover one with `hermes roam restore <path> --generation N --apply`
+roam: the remote store keeps every pushed generation; it is never pruned by roam
+verified: history lists every pushed generation of SOUL.md, newest first
+
+=== stage 3 — restore the older generation: plan first, then --apply ===
+roam: plan only — generation 1 still holds SOUL.md (sha256 8abcffcf4c34, 29B)
+roam: review it, then run the same command with --apply
+roam: restored SOUL.md from generation 1 into the home
+backup       /tmp/roam-demo-050b/alpha/roam/backups/20261107-202346
+roam: the restored version is a local change; the next `hermes roam push` publishes it
+verified: generation 1 restored verbatim; the replaced version is in roam/backups
+
+=== stage 3 — roll forward to the newest generation ===
+roam: restored SOUL.md from generation 2 into the home
+backup       /tmp/roam-demo-050b/alpha/roam/backups/20261107-202347
+roam: the restored version is a local change; the next `hermes roam push` publishes it
+local dirty  0 shared files changed — nothing to push
+fleet        2 devices
+verified: the newest generation is back and status is settled
+
+=== stage 4 — session archive with sync_sessions off: nothing session-related travels ===
+✓ Plugin hermes-roam enabled.
+
+✓ Plugin hermes-roam enabled.
+
+✓ Imported Claude Code session as 20261107_122503_776bc5
+fixture completion: end-stamped 1 imported session row(s)
+gamma holds a real imported session: 20261107_122503_776bc5 (sync_sessions off)
+  5. on the second device: `hermes roam pull`, review, then `hermes roam pull --apply`
+roam: never paste secret values into chat or files roam writes
+roam: covered root /tmp/roam-demo-050b/gamma — profiles: default(synced)
+roam: pushed generation 1 (6 files, 1784 bytes)
+roam: bundle bundles/000001-gamma-aaffa056aae6.roam
+roam: covered root /tmp/roam-demo-050b/gamma — profiles: default(synced)
+  5. on the second device: `hermes roam pull`, review, then `hermes roam pull --apply`
+roam: never paste secret values into chat or files roam writes
+roam: covered root /tmp/roam-demo-050b/delta — profiles: default(synced)
+roam: installed remote generation 1
+roam: covered root /tmp/roam-demo-050b/delta — profiles: default(synced)
+backup       /tmp/roam-demo-050b/delta/roam/backups/20261107-202518
+roam: 2 file(s) kept local (changed here since last sync):
+kept local (changed here since last sync): SOUL.md
+kept local (changed here since last sync): memories/MEMORY.md
+roam: run `hermes roam pull --apply --overwrite-conflicts` to overwrite them (a backup is kept)
+roam: 1 remote file(s) kept local by your scope rules:
+kept local by your scope rules: roam/installed-plugins.json
+roam: 1 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 2 path(s) changed locally since the last sync and remotely at the same time (conflicts) were kept local: SOUL.md, memories/MEMORY.md; resolve by pushing (this device's version wins) or by pulling with overwrite after reviewing the backup
+roam: this device has never synced with this remote; if it is a brand-new device whose local files are only Hermes's fresh seed content, run `hermes roam pull --apply --overwrite-conflicts` to take the remote home (a backup of everything replaced is kept)
+roam: 2 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 1 file(s) written, 0 deleted
+roam: no pulled session archives on this device
+roam: a device that enables sync_sessions publishes its transcripts (every profile of its root home); run `hermes roam pull --apply` to receive them
+verified: with the opt-in off, no session content traveled in either direction
+
+=== stage 4 — gamma opts in: the archive publishes; delta pulls it read-only ===
+roam: pushed generation 2 (7 files, 2611 bytes)
+roam: bundle bundles/000002-gamma-8a521d8d77e0.roam
+roam: covered root /tmp/roam-demo-050b/gamma — profiles: default(synced)
+roam: published 1 session transcript(s) covering profile(s) default in this device's read-only archive namespace (archive/sessions/gamma/)
+roam: installed remote generation 2
+roam: covered root /tmp/roam-demo-050b/delta — profiles: default(synced)
+backup       /tmp/roam-demo-050b/delta/roam/backups/20261107-202528
+roam: 2 file(s) kept local (changed here since last sync):
+kept local (changed here since last sync): SOUL.md
+kept local (changed here since last sync): memories/MEMORY.md
+roam: run `hermes roam pull --apply --overwrite-conflicts` to overwrite them (a backup is kept)
+roam: 1 remote file(s) kept local by your scope rules:
+kept local by your scope rules: roam/installed-plugins.json
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 1 session archive member(s) land READ-ONLY under <home>/roam/session-archive/<device>/ — never in the home tree, never re-pushable, never resumable; list them with `hermes roam sessions`
+roam: 2 path(s) changed locally since the last sync and remotely at the same time (conflicts) were kept local: SOUL.md, memories/MEMORY.md; resolve by pushing (this device's version wins) or by pulling with overwrite after reviewing the backup
+roam: 3 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 1 file(s) written, 0 deleted
+roam: pulled session archives (read-only, grouped by device then profile)
+gamma / default: 1 session(s), 1011 B total
+  20261107_122503_776bc5  2026-11-07T20:25:03.174309Z  1011 B  Imported from Claude Code: demo archive transcript one
+roam: print one with `hermes roam sessions show <device> <profile> <session_id>`
+roam: archived sessions are read-only: they cannot be resumed, are never re-pushed, and live under <home>/roam/session-archive/
+---
+session_id: "20261107_122503_776bc5"
+title: "Imported from Claude Code: demo archive transcript one"
+source: "claude-code"
+created_at: "2026-11-07T20:25:03.174309Z"
+updated_at: ""
+ended_at: "2026-11-07T20:25:03.498816Z"
+model: null
+provider: null
+cwd: "<work>"
+archived: false
+message_count: 2
+tool_call_count: 0
+format: "md"
+exported_at: "2026-11-07T20:25:26.050029Z"
+exporter: "hermes sessions export (md/qmd) v1"
+---
+
+# Imported from Claude Code: demo archive transcript one
+
+Session ID: `20261107_122503_776bc5`
+
+Source: `claude-code`
+
+Working directory: `<work>`
+
+## Messages
+
+### User — 2026-11-07T20:25:03.176034Z
+
+demo archive transcript one
+
+
+### Assistant — 2026-11-07T20:25:03.233859Z
+
+demo archive assistant reply
+
+## Export verification
+
+- Session id: `20261107_122503_776bc5`
+- Exported messages: `2`
+- Source DB message count at export: `2`
+- Exported at: `2026-11-07T20:25:26.050029Z`
+- SHA256 of exported body: `600e5ef756a7575ad5af7107ffdebbe57f40e67b453b2fa171bf9449342def4f`
+
+roam: archived sessions are read-only: they cannot be resumed, are never re-pushed, and live under <home>/roam/session-archive/
+archive file modes: 444
+verified: the pulled archive is read-only (0444), listed, printable, never resumable
+
+=== stage 4 — delta's own session stays local until delta opts in ===
+✓ Imported Claude Code session as 20261107_122533_9f219b
+fixture completion: end-stamped 1 imported session row(s)
+delta holds its own imported session: 20261107_122533_9f219b (sync_sessions still off)
+roam: pushed generation 3 (8 files, 2809 bytes)
+roam: bundle bundles/000003-delta-422ef544f49b.roam
+roam: covered root /tmp/roam-demo-050b/delta — profiles: default(synced)
+roam: pushed generation 4 (9 files, 3600 bytes)
+roam: bundle bundles/000004-delta-9ec306fb6def.roam
+roam: covered root /tmp/roam-demo-050b/delta — profiles: default(synced)
+roam: published 1 session transcript(s) covering profile(s) default in this device's read-only archive namespace (archive/sessions/delta/)
+roam: installed remote generation 4
+roam: covered root /tmp/roam-demo-050b/gamma — profiles: default(synced)
+backup       /tmp/roam-demo-050b/gamma/roam/backups/20261107-202541
+roam: 1 remote file(s) kept local by your scope rules:
+kept local by your scope rules: roam/installed-plugins.json
+roam: roam/session-archive/gamma/default/20261107_122503_776bc5-imported-from-claude-code-demo-archive-transcript-one.md: deleted locally since the last sync; kept deleted (push from this device to publish the deletion)
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 2 session archive member(s) land READ-ONLY under <home>/roam/session-archive/<device>/ — never in the home tree, never re-pushable, never resumable; list them with `hermes roam sessions`
+roam: 3 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 4 file(s) written, 0 deleted
+roam: pulled session archives (read-only, grouped by device then profile)
+delta / default: 1 session(s), 1015 B total
+  20261107_122533_9f219b  2026-11-07T20:25:33.140919Z  1015 B  Imported from Claude Code: demo archive transcript two
+roam: print one with `hermes roam sessions show <device> <profile> <session_id>`
+roam: archived sessions are read-only: they cannot be resumed, are never re-pushed, and live under <home>/roam/session-archive/
+verified: publishing is gated per device (status shows both opt-ins); reading needs no opt-in
+
+=== stage 5 — profiles: a real profile with its own session is pushed by eps ===
+✓ Plugin hermes-roam enabled.
+
+✓ Plugin hermes-roam enabled.
+
+
+✓ Imported Claude Code session as 20261107_122659_256942
+fixture completion: end-stamped 1 imported profile session row(s)
+eps/work holds a real imported session: 20261107_122659_256942
+✓ Imported Claude Code session as 20261107_122701_ebfb52
+fixture completion: end-stamped 1 imported root session row(s)
+roam: covered root /tmp/roam-demo-050b/eps — profiles: default(synced), work(synced)
+roam: pushed generation 1 (13 files, 4748 bytes)
+roam: bundle bundles/000001-eps-4e8d6dd06ee6.roam
+roam: covered root /tmp/roam-demo-050b/eps — profiles: default(synced), work(synced)
+roam: published 2 session transcript(s) covering profile(s) default, work in this device's read-only archive namespace (archive/sessions/eps/)
+verified: the push named the covered root and published the default and work transcripts
+
+=== stage 5 — brand-new zeta pulls: the profile arrives working and listable ===
+  5. on the second device: `hermes roam pull`, review, then `hermes roam pull --apply`
+roam: never paste secret values into chat or files roam writes
+roam: covered root /tmp/roam-demo-050b/zeta — profiles: default(synced), work(synced)
+roam: plan only — nothing was written (remote generation 1)
+would add shared profiles/work/SOUL.md
+would add shared profiles/work/memories/MEMORY.md
+would add shared profiles/work/profile.yaml
+would add shared profiles/work/skills/autonomous-ai-agents/DESCRIPTION.md
+would add shared profiles/work/skills/work-greeter/SKILL.md
+would add sessions roam/session-archive/eps/default/20261107_122701_ebfb52-imported-from-claude-code-demo-eps-root-transcript.md
+would add sessions roam/session-archive/eps/work/20261107_122659_256942-imported-from-claude-code-demo-work-profile-transcript.md
+would update shared config.yaml
+would update shared profiles/work/config.yaml
+roam: 2 file(s) changed here since the last sync; --apply would keep the local copy:
+kept local (changed here since last sync): SOUL.md
+kept local (changed here since last sync): memories/MEMORY.md
+roam: --apply --overwrite-conflicts overwrites them (a backup is kept)
+roam: 1 remote file(s) your scope rules keep local:
+kept local by your scope rules: roam/installed-plugins.json
+roam: config.yaml: never synced here; the remote's shared keys are added; host-scoped and secret keys stay local
+roam: profiles/work/config.yaml: never synced here; the remote's shared keys are added; host-scoped and secret keys stay local
+roam: 1 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 2 session archive member(s) land READ-ONLY under <home>/roam/session-archive/<device>/ — never in the home tree, never re-pushable, never resumable; list them with `hermes roam sessions`
+roam: would first-pull merge config.yaml (remote-only shared keys added, local values win where both are set, host-scoped and secret keys stay local)
+roam: would first-pull merge profiles/work/config.yaml (remote-only shared keys added, local values win where both are set, host-scoped and secret keys stay local)
+roam: 2 path(s) changed locally since the last sync and remotely at the same time (conflicts) were kept local: SOUL.md, memories/MEMORY.md; resolve by pushing (this device's version wins) or by pulling with overwrite after reviewing the backup
+roam: this device has never synced with this remote; if it is a brand-new device whose local files are only Hermes's fresh seed content, run `hermes roam pull --apply --overwrite-conflicts` to take the remote home (a backup of everything replaced is kept)
+roam: 1 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: review the plan, then run `hermes roam pull --apply`
+roam: --apply rewrites home files after making a backup
+roam: covered root /tmp/roam-demo-050b/zeta — profiles: default(synced), work(synced)
+verified: the plan named the covered root and the brand-new-device path
+roam: installed remote generation 1
+roam: covered root /tmp/roam-demo-050b/zeta — profiles: default(synced), work(synced)
+backup       /tmp/roam-demo-050b/zeta/roam/backups/20261107-202744
+roam: 1 remote file(s) kept local by your scope rules:
+kept local by your scope rules: roam/installed-plugins.json
+roam: 1 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 2 session archive member(s) land READ-ONLY under <home>/roam/session-archive/<device>/ — never in the home tree, never re-pushable, never resumable; list them with `hermes roam sessions`
+roam: would merge config.yaml (host-scoped keys stay local)
+roam: would merge profiles/work/config.yaml (host-scoped keys stay local)
+roam: 1 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: config.yaml merged; host-scoped keys kept from the local config
+roam: 9 file(s) written, 0 deleted
+device       zeta
+root         /tmp/roam-demo-050b/zeta
+backend      local
+profiles     default(synced), work(synced)
+opt-ins      session archive (publish) off (cap 50 MB); cron job definitions off
+pushed       generation 0
+pulled       generation 1
+remote head  generation 1 by eps
+remote       not ahead of this device
+local dirty  0 shared files changed — nothing to push
+fleet        2 devices
+verified: the profile arrived listable with soul/memory/skill; shared config keys arrived while zeta's own api_key stayed
+
+=== stage 5 — the per-profile session archive is listed grouped and printable ===
+roam: pulled session archives (read-only, grouped by device then profile)
+eps / default: 1 session(s), 1003 B total
+  20261107_122701_ebfb52  2026-11-07T20:27:01.135567Z  1003 B  Imported from Claude Code: demo eps-root transcript
+eps / work: 1 session(s), 1019 B total
+  20261107_122659_256942  2026-11-07T20:26:59.467540Z  1019 B  Imported from Claude Code: demo work-profile transcript
+roam: print one with `hermes roam sessions show <device> <profile> <session_id>`
+roam: archived sessions are read-only: they cannot be resumed, are never re-pushed, and live under <home>/roam/session-archive/
+---
+session_id: "20261107_122659_256942"
+title: "Imported from Claude Code: demo work-profile transcript"
+source: "claude-code"
+created_at: "2026-11-07T20:26:59.467540Z"
+updated_at: ""
+ended_at: "2026-11-07T20:26:59.848976Z"
+model: null
+provider: null
+cwd: "<work>"
+archived: false
+message_count: 2
+tool_call_count: 0
+format: "md"
+exported_at: "2026-11-07T20:27:12.592520Z"
+exporter: "hermes sessions export (md/qmd) v1"
+---
+
+# Imported from Claude Code: demo work-profile transcript
+
+Session ID: `20261107_122659_256942`
+
+Source: `claude-code`
+
+Working directory: `<work>`
+
+## Messages
+
+### User — 2026-11-07T20:26:59.469058Z
+
+demo work-profile transcript
+
+
+### Assistant — 2026-11-07T20:26:59.532821Z
+
+demo work-profile assistant reply
+
+## Export verification
+
+- Session id: `20261107_122659_256942`
+- Exported messages: `2`
+- Source DB message count at export: `2`
+- Exported at: `2026-11-07T20:27:12.592520Z`
+- SHA256 of exported body: `a5a37a8bbdbe8d99da1a0bf1b9fbea90904dc278167f191d321c464c49cd4e2a`
+
+roam: archived sessions are read-only: they cannot be resumed, are never re-pushed, and live under <home>/roam/session-archive/
+verified: the archive listing groups by device then profile; the per-profile transcript prints
+
+=== stage 5 — a profile context maps up to the ROOT home ===
+Warning: custom (unreviewed) source — not from the Hermes catalog.
+Warning: Using insecure/local URL scheme. Consider using https:// or git@ for 
+production installs.
+Cloning file://<work>/hermes-roam...
+
+hermes-roam requires the following environment variables:
+
+  ROAM_ARCHIVE_KEY — Shared 32-byte key that encrypts every roam bundle and 
+signs the remote head; every device must use the same value. Generate it with 
+python -c "import secrets;print(secrets.token_urlsafe(32))" and put it in the 
+active profile's .env; the token is 32 random bytes in base64url form.
+<home>/.hermes/tools/python-3.14.9+20261021-linux-x64/lib/python3.14/getpass.py:99: GetPassWarning: Can not control echo on the terminal.
+  passwd = fallback_getpass(prompt, stream)
+Warning: Password input may be echoed.
+  ROAM_ARCHIVE_KEY: 
+  Skipped (you can set these later in 
+/tmp/roam-demo-050b/zeta/profiles/work/.env)
+
+╭──────────────────────────── ✓ Installed ─────────────────────────────╮
+│ Plugin installed: file://<work>/hermes-roam                      │
+│ Location: /tmp/roam-demo-050b/zeta/profiles/work/plugins/hermes-roam │
+╰──────────────────────────────────────────────────────────────────────╯
+
+Plugin installed but not enabled. Run `hermes plugins enable hermes-roam` to 
+activate.
+
+  → Resolving Python dependencies…
+  ✓ Resolving Python dependencies
+  → Installing Python dependencies…
+  ✓ Installing Python dependencies
+✓ Plugin hermes-roam enabled.
+device       zeta
+root         /tmp/roam-demo-050b/zeta
+backend      local
+profiles     default(synced), work(synced)
+opt-ins      session archive (publish) off (cap 50 MB); cron job definitions off
+pushed       generation 0
+pulled       generation 1
+remote head  generation 1 by eps
+remote       not ahead of this device
+local dirty  1 shared file(s) changed — a push would carry them
+fleet        2 devices
+verified: hermes -p work roam status reports the ROOT home and the profile sync state
+
+=== PROOF COMPLETE — both backends and the opt-in session archive round-tripped under real Hermes ===
+artifacts under: /tmp/roam-demo-050b (remove it to clean up)

@@ -178,6 +178,13 @@ class LocalState:
     last_push_at: float = 0.0
     last_pull_at: float = 0.0
     base_files: dict[str, dict[str, Any]] = field(default_factory=dict)  # manifest at last sync point
+    # 0.4.2: shared-projection digests of each config this device ever
+    # ACCEPTED (merged, took wholesale, or already carried). The three-way
+    # config verdict on pull compares against this accepted base — never
+    # against a bundle the device merely downloaded — so a pull that was
+    # refused or never applied can never turn a remote change into a
+    # phantom "local-only change".
+    config_base_digests: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)

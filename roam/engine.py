@@ -805,44 +805,55 @@ class Engine:
             return self._push(force=force, dry_run=dry_run)
 
     def _session_archive_extras(self) -> tuple[dict[str, bytes], list[str], bool]:
-        """The opt-in session archive members a push would bundle (0.4.1).
+        """The opt-in session archive members a push would bundle.
 
-        With ``sync_sessions`` enabled, this home's sessions are exported by
-        Hermes's own documented CLI — ``hermes sessions export --format md
-        --redact`` — run as a disclosed argv subprocess with ``HERMES_HOME``
-        set to the active home, stdin closed and a hard timeout inside the
-        armed operation deadline, then capped at ``sessions_max_mb`` NEWEST
-        first. Any failure degrades to a clear notice: the push of
-        everything else still succeeds and the previously published archive
-        is kept by the caller.
+        With ``sync_sessions`` enabled, EVERY home of the ROOT home is
+        exported by Hermes's own documented CLI — ``hermes sessions export
+        --format md --redact`` — run as a disclosed argv subprocess with
+        ``HERMES_HOME`` set to the home being exported (the ROOT home as
+        profile ``default``, then each ``profiles/<name>/``), stdin closed
+        and a hard timeout inside the armed operation deadline. All
+        profiles share one cap (``sessions_max_mb``, NEWEST first). Any
+        failure degrades to a clear notice: the push of everything else
+        still succeeds and the previously published archive is kept by the
+        caller.
         """
         if not self.settings.sync_sessions:
             return {}, [], True
         notes: list[str] = []
+        failures: list[str] = []
+        entries: list[dict[str, Any]] = []
         scratch = self._roam_subdir("tmp") / f"sess-{uuid.uuid4().hex}"
         try:
             hermes_exe = archive_mod.find_hermes()
-            remaining = (self._deadline or 0.0) - time.monotonic()
-            if remaining <= 1.0 or not hermes_exe:
-                entries, reason = [], (
-                    "the operation deadline left no time for the export"
-                    if remaining <= 1.0
-                    else "the hermes executable was not found on PATH"
-                )
+            if not hermes_exe:
+                failures.append("the hermes executable was not found on PATH")
             else:
-                entries, reason = self.pipeline.export_sessions(
-                    self.home,
-                    scratch,
-                    hermes_exe,
-                    min(remaining, archive_mod.EXPORT_TIMEOUT_CAP),
-                )
+                for profile, home_dir in archive_mod.export_homes(self.home):
+                    remaining = (self._deadline or 0.0) - time.monotonic()
+                    if remaining <= 1.0:
+                        failures.append(
+                            "the operation deadline left no time for the export"
+                        )
+                        break
+                    profile_entries, reason = self.pipeline.export_sessions(
+                        home_dir,
+                        scratch / profile,
+                        hermes_exe,
+                        min(remaining, archive_mod.EXPORT_TIMEOUT_CAP),
+                    )
+                    if reason:
+                        failures.append(f"profile {profile}: {reason}")
+                        continue
+                    entries.extend({"profile": profile, **item} for item in profile_entries)
         finally:
             shutil.rmtree(scratch, ignore_errors=True)
-        if reason:
+        if failures:
             notes.append(
-                f"the session archive could not be exported ({reason}); this push "
-                "continues without publishing session transcripts and keeps the "
-                "previously published archive"
+                "the session archive could not be exported ("
+                + "; ".join(failures)
+                + "); this push continues without publishing session transcripts "
+                "and keeps the previously published archive"
             )
             return {}, notes, False
         kept, dropped = archive_mod.cap_entries(
@@ -852,7 +863,9 @@ class Engine:
         for entry in kept:
             try:
                 relpath = archive_mod.bundle_relpath(
-                    self.settings.device_name, str(entry["name"])
+                    self.settings.device_name,
+                    str(entry["profile"]),
+                    str(entry["name"]),
                 )
             except (KeyError, ValueError):
                 continue
@@ -863,10 +876,11 @@ class Engine:
                 f"{self.settings.sessions_max_mb}) dropped {dropped} older "
                 "session(s) from this push"
             )
+        covered = sorted({str(entry["profile"]) for entry in kept}) or ["none"]
         notes.append(
-            f"published {len(extras)} session transcript(s) in this device's "
-            f"read-only archive namespace ({archive_mod.ARCHIVE_PREFIX}"
-            f"{self.settings.device_name}/)"
+            f"published {len(extras)} session transcript(s) covering profile(s) "
+            f"{', '.join(covered)} in this device's read-only archive namespace "
+            f"({archive_mod.ARCHIVE_PREFIX}{self.settings.device_name}/)"
         )
         return extras, notes, True
 
@@ -1051,11 +1065,25 @@ class Engine:
         finally:
             bundle_path.unlink(missing_ok=True)
         updated = state.to_dict()
+        # 0.4.2: a push publishes this device's own stripped config, so the
+        # published shared projections become the accepted config base — a
+        # publisher must never be treated as never-synced for configs.
+        published_config_base = dict(state.config_base_digests or {})
+        projection = self._shared_projection_fn(self._host_keys(rules))
+        for relpath, data in extras.items():
+            if _is_config_path(relpath):
+                # the canonical digest of the published stripped projection
+                # — the same function a pull uses, so publisher and puller
+                # agree on one accepted base (0.4.2)
+                published_config_base[relpath] = projection(
+                    data.decode("utf-8", errors="replace")
+                )
         updated.update(
             last_pushed_generation=generation,
             last_seen_generation=generation,
             last_push_at=now,
             base_files=manifest,
+            config_base_digests=published_config_base,
         )
         self.save_state(LocalState.from_dict(updated))
         return PushResult(
@@ -1661,7 +1689,7 @@ class Engine:
                     f"generation {target['generation']}'s bundle does not carry "
                     f"{path!r}; nothing to restore"
                 )
-            plan = restore.InstallPlan(configs=((path, staged),))
+            plan = restore.InstallPlan(configs=((path, staged, "merge"),))
             sha = ""
             size = 0
         else:
@@ -1838,9 +1866,11 @@ class Engine:
                     skipped_local.append(relpath)
             # R1: this verified bundle becomes the carry-forward source — but
             # only after the head/bundle cross-check above passed. The BASE
-            # config digests are read from the PREVIOUS bundle first (R3).
+            # config digests are the ACCEPTED ones from the local state first
+            # (0.4.2): a bundle this device only downloaded or reviewed is
+            # never a sync point for configs.
             config_paths = [rel for rel in manifest if _is_config_path(rel)]
-            config_base_digests = self._config_base_digests(config_paths, self._host_keys(rules))
+            config_base_digests = self._config_base_digests(config_paths, state)
             self._save_last_roam(bundle_path)
         finally:
             bundle_path.unlink(missing_ok=True)
@@ -1853,12 +1883,33 @@ class Engine:
             overwrite_conflicts=overwrite_conflicts,
             config_base_digests=config_base_digests,
             shared_projection_fn=self._shared_projection_fn(self._host_keys(rules)),
+            first_pull_conflict_keys_fn=self._first_pull_conflict_keys_fn(self._host_keys(rules)),
         )
         # R1 replaced the roster 'syncs' guard: a publisher that cannot see a
         # path now carries it forward byte-identical, so a pull never needs to
         # guess what the last publisher was able to delete.
         conflicts = sorted(set(plan.conflicts) | set(plan.config_conflicts))
         plan_diff = self._plan_diff(plan, base_manifest, rules, signed.generation)
+        # 0.4.2: the config shared projections this device is ACCEPTING with
+        # this pull — merged configs and configs whose local copy already
+        # carries the remote projection. Refused configs (config_conflicts)
+        # never land here, so they keep their previous base and stay real
+        # conflicts instead of turning into phantom local-only changes.
+        accepted_config_base = dict(state.config_base_digests or {})
+        projection = self._shared_projection_fn(self._host_keys(rules))
+        accepted_grew = False
+        for relpath in plan.unchanged:
+            if not _is_config_path(relpath):
+                continue
+            staged_member = staging_dir / relpath
+            if not staged_member.is_file():
+                continue
+            digest = projection(
+                staged_member.read_text(encoding="utf-8", errors="replace")
+            )
+            if accepted_config_base.get(relpath) != digest:
+                accepted_config_base[relpath] = digest
+                accepted_grew = True
         plugins = self._plugins_to_install(staging_dir) if include_prefixes is None else []
         # R3: the plan's per-path outcomes (kept-local configs, kept-deleted
         # paths) must reach the user; the engine relays them verbatim.
@@ -1885,9 +1936,16 @@ class Engine:
                 f"{len(unapproved)} bundled path(s) are not listed in the signed head "
                 "and were not installed"
             )
-        for relpath, _staged in plan.configs:
+        for relpath, _staged, mode in plan.configs:
             # R11: the plan lists the config merge the apply would perform
-            notes.append(f"would merge {relpath} (host-scoped keys stay local)")
+            if mode == "first_pull":
+                notes.append(
+                    f"would first-pull merge {relpath} (remote-only shared keys added, "
+                    "local values win where both are set, host-scoped and secret keys "
+                    "stay local)"
+                )
+            else:
+                notes.append(f"would merge {relpath} (host-scoped keys stay local)")
         if conflicts:
             shown = ", ".join(conflicts[:10])
             notes.append(
@@ -1896,6 +1954,20 @@ class Engine:
                 "resolve by pushing (this device's version wins) or by pulling "
                 "with overwrite after reviewing the backup"
             )
+            if not state.last_pulled_generation and not state.last_pushed_generation:
+                # 0.4.2: a brand-new device carries Hermes's freshly seeded
+                # SOUL.md and an empty shared history, so its first pull
+                # legitimately conflicts on files it never wrote. The seed
+                # text is Hermes-internal and cannot be detected from the
+                # plugin, so the honest answer is to say it out loud: a
+                # brand-new device takes the remote home wholesale.
+                notes.append(
+                    "this device has never synced with this remote; if it is a "
+                    "brand-new device whose local files are only Hermes's fresh "
+                    "seed content, run `hermes roam pull --apply "
+                    "--overwrite-conflicts` to take the remote home (a backup "
+                    "of everything replaced is kept)"
+                )
         if plan.skipped:
             notes.append(
                 f"{len(plan.skipped)} bundled path(s) skipped (local, ignored, or unselected)"
@@ -1930,6 +2002,10 @@ class Engine:
                 backup_dir="",
                 journal_path="",
             )
+            # 0.4.2 note: the home is untouched (R3 converged no-op), but the
+            # state update below still records the config projections this
+            # pull proved the local configs already carry — state.json is
+            # roam's own bookkeeping, not a home file.
         else:
             backup_dir = self._roam_subdir("backups") / time.strftime(
                 "%Y%m%d-%H%M%S", time.gmtime(self.clock())
@@ -1942,10 +2018,22 @@ class Engine:
                 merge_config_fn=self.pipeline.merge_config,
                 host_keys=self._host_keys(rules),
             )
+            for relpath, staged_member, mode in plan.configs:
+                if mode == "first_pull":
+                    # the union kept local values: the remote projection was
+                    # NOT accepted, so no base is recorded — a later
+                    # --overwrite-conflicts must still be able to take it
+                    continue
+                accepted_config_base[relpath] = projection(
+                    staged_member.read_text(encoding="utf-8", errors="replace")
+                )
+                accepted_grew = True
             # R5: prune the backup window once the install committed.
             self._prune_backups()
         updated = state.to_dict()
         updated.update(last_pull_at=self.clock())
+        if accepted_grew:
+            updated.update(config_base_digests=accepted_config_base)
         # Conflicting paths keep their last-sync entry (or, when never synced,
         # the signed one) so the local version stays visibly dirty and the
         # next push from this device carries it — the "local wins" resolution.
@@ -1979,7 +2067,14 @@ class Engine:
         self.save_state(LocalState.from_dict(updated))
         notes = list(notes)
         if applied.config_merged:
-            notes.append("config.yaml merged; host-scoped keys kept from the local config")
+            if any(mode == "first_pull" for _, _, mode in plan.configs):
+                notes.append(
+                    "config.yaml first-pull merged: the remote's shared keys were added "
+                    "where the local file lacked them, local values won for shared keys "
+                    "both sides set, and host-scoped and secret keys stayed local"
+                )
+            else:
+                notes.append("config.yaml merged; host-scoped keys kept from the local config")
         notes.append(f"{applied.files_written} file(s) written, {applied.files_deleted} deleted")
         return PullResult(
             generation=signed.generation,
@@ -2005,6 +2100,7 @@ class Engine:
         overwrite_conflicts: bool,
         config_base_digests: dict[str, str] | None,
         shared_projection_fn: object,
+        first_pull_conflict_keys_fn: object,
     ) -> Any:
         """Call restore.plan_install with the pre-agreed three-way signature
         (base digests + shared-projection function for config merges)."""
@@ -2017,32 +2113,36 @@ class Engine:
             base_manifest=base_manifest,
             config_base_digests=config_base_digests,
             shared_projection_fn=shared_projection_fn,
+            first_pull_conflict_keys_fn=first_pull_conflict_keys_fn,
             overwrite_conflicts=overwrite_conflicts,
         )
 
     def _config_base_digests(
-        self, config_paths: list[str], host_keys: list[str]
-    ) -> Any:
-        """R3 wiring: digests of the BASE (last-sync) shared projection of each
-        config, read from the PREVIOUS bundle (roam/last.roam). None when g2's
-        shared_projection_digest is absent, when there is no previous bundle
-        (a first pull has no base), or when it cannot be read."""
-        digest_fn = _sibling("scope").shared_projection_digest
-        if not config_paths:
-            return None
-        if not self._last_roam_path().is_file():
-            return None
-        try:
-            members = self._extract_last_roam_members(config_paths)
-        except RoamError:
-            return None
-        out: dict[str, str] = {}
-        for relpath, data in members.items():
-            try:
-                out[relpath] = digest_fn(data.decode("utf-8", "replace"), host_keys)  # type: ignore[call-arg]
-            except Exception:  # noqa: BLE001 - an unreadable base projection is no base
-                continue
+        self, config_paths: list[str], state: LocalState
+    ) -> dict[str, str] | None:
+        """R3 wiring: digests of the BASE (last-ACCEPTED) shared projection of
+        each config, from the config_base_digests field of the local state
+        (0.4.2). A digest is recorded only when this device actually
+        accepted a config's shared projection — a push of its own stripped
+        config, or a pull apply that merged/already carried it — never when a
+        bundle was merely downloaded or a plan reviewed, so a refused or
+        plan-only pull cannot poison the base and turn later remote changes
+        into phantom local-only changes. None when nothing was accepted yet
+        (a true first pull)."""
+        accepted = state.config_base_digests if isinstance(state.config_base_digests, dict) else {}
+        out = {relpath: accepted[relpath] for relpath in config_paths if relpath in accepted}
         return out or None
+
+    def _first_pull_conflict_keys_fn(self, host_keys: list[str]) -> Any:
+        """0.4.2 wiring: the shared-key conflict reporter bound to this
+        device's host keys, so the first-pull merge can list every local
+        value that wins instead of being silently replaced."""
+        conflict_fn = _sibling("scope").first_pull_conflict_keys
+
+        def conflicts(remote_text: str, local_text: str) -> list[str]:
+            return conflict_fn(remote_text, local_text, host_keys)
+
+        return conflicts
 
     def _shared_projection_fn(self, host_keys: list[str]) -> Any:
         """R3 wiring: the shared-projection digest function bound to this
@@ -2079,7 +2179,7 @@ class Engine:
         for relpath in plan.to_delete:
             scope = self.pipeline.classify(relpath, rules)
             removed.setdefault(scope, []).append(relpath)
-        for relpath, _staged in plan.configs:
+        for relpath, _staged, _mode in plan.configs:
             # R11: the pull plan lists the config merges the apply would perform
             scope = self.pipeline.classify(relpath, rules)
             group = changed if (self.home / relpath).exists() else added

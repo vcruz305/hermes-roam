@@ -317,6 +317,98 @@ def test_merge_config_malformed_local_is_config_error() -> None:
         scope.merge_config(REMOTE_TEXT, "a: [unclosed\n", HOST_KEYS)
 
 
+FIRST_PULL_REMOTE = """\
+model:
+  provider: openrouter
+  default: fleet-model
+  api_key: sk-remote-00000001
+telemetry:
+  enabled: false
+plugins:
+  entries:
+    hermes-roam:
+      settings:
+        backend: git
+        device_name: vps
+    other-plugin:
+      enabled: true
+"""
+
+FIRST_PULL_LOCAL = """\
+model:
+  provider: own-provider
+  api_key: sk-local-0000000002
+plugins:
+  entries:
+    hermes-roam:
+      settings:
+        backend: git
+        git_remote: file:///srv/roam.git
+        device_name: beta
+"""
+
+
+def test_first_pull_merge_is_a_union_with_local_precedence() -> None:
+    """RULING: 0.4.2 — on a device that never accepted a shared projection,
+    the merge adds the remote's shared keys the local file LACKS, keeps every
+    local value where both sides set the same key, and never moves
+    host-scoped or secret keys."""
+    merged = yaml.safe_load(
+        scope.merge_config(FIRST_PULL_REMOTE, FIRST_PULL_LOCAL, HOST_KEYS, first_pull=True)
+    )
+    # remote-only shared keys are added
+    assert merged["model"]["default"] == "fleet-model"
+    assert merged["telemetry"] == {"enabled": False}
+    assert merged["plugins"]["entries"]["other-plugin"] == {"enabled": True}
+    # local values win where both sides set the same key
+    assert merged["model"]["provider"] == "own-provider"
+    # secrets and host-scoped keys stay local; the remote's never arrive
+    assert merged["model"]["api_key"] == "sk-local-0000000002"
+    assert merged["plugins"]["entries"]["hermes-roam"] == {
+        "settings": {
+            "backend": "git",
+            "git_remote": "file:///srv/roam.git",
+            "device_name": "beta",
+        }
+    }
+
+
+def test_first_pull_conflict_keys_lists_exactly_the_kept_shared_keys() -> None:
+    keys = scope.first_pull_conflict_keys(FIRST_PULL_REMOTE, FIRST_PULL_LOCAL, HOST_KEYS)
+    assert keys == ["model.provider"]
+    # nothing contested -> nothing reported
+    empty = scope.first_pull_conflict_keys(
+        FIRST_PULL_REMOTE, "telemetry: {enabled: false}\n", HOST_KEYS
+    )
+    assert empty == []
+
+
+def test_first_pull_union_never_replaces_a_local_subtree_with_remote_leaves() -> None:
+    """A local scalar set on a key the remote holds as a mapping wins whole:
+    the remote's leaves under it are not grafted around the local value."""
+    merged = yaml.safe_load(
+        scope.merge_config(FIRST_PULL_REMOTE, "model: own-model\n", HOST_KEYS, first_pull=True)
+    )
+    assert merged["model"] == "own-model"
+    assert "telemetry" in merged  # untouched remote-only keys still arrive
+
+
+def test_default_merge_still_takes_the_remote_shared_values() -> None:
+    """Without first_pull the 0.2.0 contract stands: the remote shared
+    projection wins for shared keys; only host-scoped values stay local."""
+    merged = yaml.safe_load(scope.merge_config(FIRST_PULL_REMOTE, FIRST_PULL_LOCAL, HOST_KEYS))
+    assert merged["model"]["provider"] == "openrouter"
+    assert merged["model"]["default"] == "fleet-model"
+    assert merged["model"]["api_key"] == "sk-local-0000000002"
+    assert merged["plugins"]["entries"]["hermes-roam"] == {
+        "settings": {
+            "backend": "git",
+            "git_remote": "file:///srv/roam.git",
+            "device_name": "beta",
+        }
+    }
+
+
 def test_strip_host_keys_removes_host_scoped_values() -> None:
     stripped = yaml.safe_load(scope.strip_host_keys(REMOTE_TEXT, HOST_KEYS))
     assert stripped["model"] == {"provider": "openai", "name": "gpt-test"}
