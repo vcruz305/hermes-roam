@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.5 — 2026-11-08
+
+Second Windows fix from the same live Windows 11 run.
+
+- A second pull on Windows failed with `WinError 5`: session-archive members
+  are installed read-only (0444), and Windows refuses `os.replace` onto a
+  read-only file, unlinking one, or `rmtree` over one (on POSIX the directory's
+  permissions decide). New `roam/winfs.py` clears the read-only attribute
+  first on Windows (no-op elsewhere). It is used by the atomic installers,
+  restore/rollback deletes, the archive relocation, and the staging/scratch
+  cleanup. The members stay read-only after install.
+- Proven live on Windows: pull after a refused stale push, push, history and
+  restore over existing read-only archive members.
+
 ## 0.5.4 — 2026-11-08
 
 Windows fixes from roam's first real Windows run (Windows 11, Hermes 0.23.0,

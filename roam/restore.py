@@ -6,7 +6,6 @@ import calendar
 import hashlib
 import json
 import os
-import shutil
 import stat
 import time
 import uuid
@@ -14,7 +13,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
-from . import cron_install
+from . import cron_install, winfs
 from .errors import RestoreError
 from .model import Scope, canonical_json
 from .scope import is_config_path as _default_is_config
@@ -146,10 +145,10 @@ def _copy_atomic(target: Path, source: Path, mode: int) -> None:
             out.flush()
             os.fsync(out.fileno())
         os.chmod(tmp, mode & 0o777)
-        os.replace(tmp, target)
+        winfs.replace(tmp, target)
         _fsync_dir(target.parent)
     except BaseException:
-        tmp.unlink(missing_ok=True)
+        winfs.unlink(tmp)
         raise
 
 
@@ -163,10 +162,10 @@ def _write_atomic(target: Path, data: bytes, mode: int) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         os.chmod(tmp, mode & 0o777)
-        os.replace(tmp, target)
+        winfs.replace(tmp, target)
         _fsync_dir(target.parent)
     except BaseException:
-        tmp.unlink(missing_ok=True)
+        winfs.unlink(tmp)
         raise
 
 
@@ -183,10 +182,10 @@ def _write_journal(path: Path, record: dict) -> None:
             handle.write(canonical_json(record))
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(tmp, path)
+        winfs.replace(tmp, path)
         _fsync_dir(path.parent)
     except BaseException:
-        tmp.unlink(missing_ok=True)
+        winfs.unlink(tmp)
         raise
 
 
@@ -507,7 +506,7 @@ def _rollback(
                 # unlinking it would destroy the pre-pull version forever
                 unrecoverable += 1
             elif target.is_file() or target.is_symlink():
-                target.unlink(missing_ok=True)
+                winfs.unlink(target)
                 removed += 1
         for relpath in record.get("to_delete", []):
             if relpath not in preexisting:
@@ -655,7 +654,7 @@ def apply(
             for relpath in plan.to_delete:
                 target = home / relpath
                 if target.is_file() or target.is_symlink():
-                    target.unlink(missing_ok=True)
+                    winfs.unlink(target)
                     _fsync_dir(target.parent)
                     deleted += 1
             for relpath, staged_path, mode_flag in plan.configs:
@@ -821,7 +820,7 @@ def prune_backups(backups_root: Path, journals_dir: Path, keep: int) -> int:
     timestamped.sort()
     stale_dirs = timestamped[: max(len(timestamped) - max(keep, 0), 0)]
     for _, stale in stale_dirs:
-        shutil.rmtree(stale, ignore_errors=True)
+        winfs.rmtree(stale, ignore_errors=True)
         pruned += 1
     kept = timestamped[len(stale_dirs):]
     if keep <= 0:

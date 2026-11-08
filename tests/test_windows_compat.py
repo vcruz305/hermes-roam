@@ -56,3 +56,29 @@ def test_home_lock_uses_msvcrt_region_lock_past_the_record(monkeypatch, tmp_path
         os.close(fd)
     assert calls[0] == (engine._WIN_LOCK_OFFSET, fake.LK_NBLCK, 1)
     assert calls[1] == (engine._WIN_LOCK_OFFSET, fake.LK_UNLCK, 1)
+
+
+def test_read_only_archive_members_are_replaceable_and_removable_on_windows(
+    monkeypatch, tmp_path
+):
+    """Session-archive members land 0444; Windows refuses os.replace onto,
+    unlink of, and rmtree over read-only files. winfs clears the attribute
+    first (a real Windows pull failed with WinError 5 before 0.5.4)."""
+    from roam import winfs
+
+    cleared = []
+    real_chmod = os.chmod
+    monkeypatch.setattr(os, "name", "nt")
+    monkeypatch.setattr(
+        os, "chmod", lambda p, m: cleared.append(os.fspath(p)) or real_chmod(p, m)
+    )
+    dst = tmp_path / "member.md"
+    dst.write_text("old")
+    real_chmod(dst, 0o444)
+    src = tmp_path / "staged.md"
+    src.write_text("new")
+    winfs.replace(src, dst)
+    assert dst.read_text() == "new" and os.fspath(dst) in cleared
+    real_chmod(dst, 0o444)
+    winfs.unlink(dst)
+    assert not dst.exists()

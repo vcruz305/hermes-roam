@@ -23,7 +23,7 @@ from typing import Any
 # Relative imports only: the package loads both as top-level ``roam`` (tests,
 # source checkout) and as ``hermes_plugins.<slug>.roam`` inside Hermes, and
 # every sibling must resolve to the same module object in either identity.
-from . import cron_install, restore
+from . import cron_install, restore, winfs
 from . import head as head_mod
 from . import session_archive as archive_mod
 from .backends.base import Backend
@@ -571,7 +571,7 @@ class Engine:
                 out[relpath] = member.read_bytes()
             return out
         finally:
-            shutil.rmtree(scratch, ignore_errors=True)
+            winfs.rmtree(scratch, ignore_errors=True)
 
     def _invisible_base_entries(
         self, manifest: dict[str, dict], base_files: object, rules: object
@@ -896,7 +896,7 @@ class Engine:
                         continue
                     entries.extend({"profile": profile, **item} for item in profile_entries)
         finally:
-            shutil.rmtree(scratch, ignore_errors=True)
+            winfs.rmtree(scratch, ignore_errors=True)
         if failures:
             notes.append(
                 "the session archive could not be exported ("
@@ -1568,7 +1568,7 @@ class Engine:
                 except VerifyError:
                     continue
         finally:
-            shutil.rmtree(scratch_root, ignore_errors=True)
+            winfs.rmtree(scratch_root, ignore_errors=True)
         # A bundle above the signed head was never published (a lost CAS race
         # leaves it in the store); it is not part of the chain.
         index = {
@@ -1699,7 +1699,7 @@ class Engine:
                 target, path, scope, rules, apply=apply, recovered=recovered
             )
         finally:
-            shutil.rmtree(scratch_root, ignore_errors=True)
+            winfs.rmtree(scratch_root, ignore_errors=True)
 
     def _open_generation_bundle(
         self, generation: int, signed: Head, scratch_root: Path
@@ -1855,7 +1855,7 @@ class Engine:
             if envelope_header.get("plain_sha256") != signed.plain_sha256:
                 raise VerifyError("the bundle plaintext digest does not match the signed head")
             if staging_dir.exists():
-                shutil.rmtree(staging_dir)
+                winfs.rmtree(staging_dir)
             raw_manifest = self.pipeline.open_bundle(
                 bundle_path,
                 key=self.settings.archive_key,
@@ -1905,7 +1905,7 @@ class Engine:
                 if install_path != relpath and staged_member.is_file():
                     target_member = staging_dir / install_path
                     target_member.parent.mkdir(parents=True, exist_ok=True)
-                    os.replace(staged_member, target_member)
+                    winfs.replace(staged_member, target_member)
                     staged_member = target_member
                     archive_planned += 1
                 if staged_member.is_file():

@@ -1,6 +1,6 @@
 # hermes-roam plugin manifest (Hermes plugin format, manifest v2)
 name: hermes-roam
-version: 0.5.4
+version: 0.5.5
 manifest_version: 2
 description: >-
   Encrypted, host-scoped sync of the Hermes Agent home across devices.
