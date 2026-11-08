@@ -25,6 +25,7 @@ states these numbers.
 
 from __future__ import annotations
 
+import contextvars
 import logging
 import threading
 import time
@@ -67,7 +68,17 @@ def _spawn(target, cap: int) -> None:
     nothing by itself — the real bound on the work is the operation
     deadlines. The WARNING names the overrun so operators see it in the logs.
     """
-    worker = threading.Thread(target=target, daemon=True, name="roam-hook")
+    # Run the work in a copy of the hook's context. Under Hermes 0.23 a CLI
+    # chat is served by a per-home gateway, and agent.secret_scope binds the
+    # profile's secrets in a ContextVar for the turn (fail closed while
+    # multiplexing). A bare thread starts with an EMPTY context, so the
+    # archive-key read raised UnscopedSecretError and every auto-push and
+    # startup auto-pull failed silently. Carrying the context keeps the
+    # exact scope Hermes installed for this session.
+    context = contextvars.copy_context()
+    worker = threading.Thread(
+        target=context.run, args=(target,), daemon=True, name="roam-hook"
+    )
     worker.start()
 
     def watch() -> None:

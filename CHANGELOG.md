@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.6 — 2026-11-08
+
+- Auto sync failed silently under Hermes 0.23. There, a CLI chat is served
+  by a per-home gateway that binds profile secrets in a ContextVar
+  (`agent.secret_scope`, fail-closed while multiplexing). The hook's
+  background thread started with an empty context, so reading
+  `ROAM_ARCHIVE_KEY` raised `UnscopedSecretError` and every auto-push and
+  session-start auto-pull failed. Hook work now runs in a copy of the hook
+  caller's context (`contextvars.copy_context().run`), keeping exactly the
+  scope Hermes installed for the session. A regression test fails on 0.5.5.
+- Proven live on Hermes 0.23.0: a chat that saves a memory triggers the
+  auto-push at session end (`pending: no`, new generation published).
+
 ## 0.5.5 — 2026-11-08
 
 Second Windows fix from the same live Windows 11 run.
