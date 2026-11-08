@@ -1,0 +1,128 @@
+# hermes-roam 0.5.3 — cron pause live proof (real Hermes 0.22.5, local backend)
+
+# Two scratch homes (HOME_A, HOME_B) share one local-backend store (STORE) under
+# WORK. Both opt into sync_cron. The transcript proves, in order:
+#   1. HOME_A creates a live, ENABLED cron job with `hermes cron create`.
+#   2. The plan-only pull lists the job as landing PAUSED with the exact
+#      `hermes cron resume <id>` command and writes nothing.
+#   3. `pull --apply` installs the job PAUSED (no next run), and
+#      `hermes cron list` on HOME_B shows [paused].
+#   4. The printed `hermes cron resume <id>` works on HOME_B.
+#   5. HOME_A pulls back: its own copy stays [active]/enabled (0 files written).
+#   6. HOME_B pushes its resumed store and HOME_A pulls it back: HOME_A's copy
+#      stays [active] — the pause never round-trips to the origin.
+#   7. While another process holds HOME_B's cron .jobs.lock, the pull fails
+#      CLOSED inside the bounded wait (~31 s wall) with a clear error and
+#      nothing written; after the lock is released the same pull succeeds and
+#      the second job lands PAUSED too.
+# Host paths are sanitized: WORK=the working directory, HOME_A/HOME_B=scratch homes,
+# STORE=the local backend dir, HERMES_INSTALL=the Hermes install directory.
+# The archive key never appears in this transcript.
+
+===== hermes version + plugin version =====
+Hermes Agent v0.22.5 (2026.9.24) · stable · local bf0203a794a0
+Install directory: HERMES_INSTALL
+
+===== install + enable hermes-roam in both scratch homes (local backend, sync_cron on) =====
+
+✓ Plugin hermes-roam enabled.
+
+✓ Plugin hermes-roam enabled.
+alpha configured
+beta configured
+
+===== home A creates a live, enabled cron job via hermes cron create =====
+Created job: 3d7ffb6a8e27
+  Name: roam-probe
+  Schedule: every 30m
+  Next run: 2026-11-07T17:20:31.827637-08:00
+  3d7ffb6a8e27 [active]
+    Name:      roam-probe
+    Next run:  2026-11-07T17:20:31.827637-08:00
+
+===== home A initializes the remote and pushes (generation 1) =====
+roam: never paste secret values into chat or files roam writes
+roam: covered root HOME_A — profiles: default(synced)
+roam: pushed generation 1 (4 files, 2117 bytes)
+roam: bundle bundles/000001-alpha-0d2560a9f4f6.roam
+roam: covered root HOME_A — profiles: default(synced)
+
+===== home B pulls the plan (nothing written yet) — the pause listing and resume command appear =====
+roam: covered root HOME_B — profiles: default(synced)
+roam: plan only — nothing was written (remote generation 1)
+roam: 1 remote file(s) your scope rules keep local:
+roam: cron/jobs.json: 1 pulled cron job(s) land PAUSED — a pulled job never starts on this device by itself; resume each one explicitly with; `hermes cron resume 3d7ffb6a8e27`
+roam: 1 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 2 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: review the plan, then run `hermes roam pull --apply`
+roam: --apply rewrites home files after making a backup
+roam: covered root HOME_B — profiles: default(synced)
+[plan-only check] does the cron store exist on B yet?
+output
+ticker_heartbeat
+ticker_last_success
+
+===== home B applies the pull — the job lands PAUSED =====
+roam: installed remote generation 1
+roam: covered root HOME_B — profiles: default(synced)
+roam: 1 remote file(s) kept local by your scope rules:
+roam: cron/jobs.json: 1 pulled cron job(s) land PAUSED — a pulled job never starts on this device by itself; resume each one explicitly with; `hermes cron resume 3d7ffb6a8e27`
+roam: 1 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 2 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 1 file(s) written, 0 deleted
+
+===== hermes cron list on home B: the pulled job is PAUSED, with no next run =====
+  3d7ffb6a8e27 [paused]
+    Name:      roam-probe
+    Next run:  None
+job id from the listing: 3d7ffb6a8e27
+
+===== the exact resume command from the pull output works on home B =====
+Resumed job: roam-probe (3d7ffb6a8e27)
+  Next run: 2026-11-07T17:20:46.562014-08:00
+  3d7ffb6a8e27 [active]
+    Name:      roam-probe
+    Next run:  2026-11-07T17:20:46.562014-08:00
+
+===== home A pulls back — its own copy must still be enabled =====
+roam: installed remote generation 1
+roam: covered root HOME_A — profiles: default(synced)
+roam: 1 remote file(s) kept local by your scope rules:
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 3 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  3d7ffb6a8e27 [active]
+    Name:      roam-probe
+    Next run:  2026-11-07T17:20:31.827637-08:00
+
+===== home B pushes its resumed store; home A pulls it back — the pause must NOT round-trip =====
+roam: bundle bundles/000002-beta-19ed6c320bca.roam
+roam: covered root HOME_B — profiles: default(synced)
+roam: installed remote generation 2
+roam: covered root HOME_A — profiles: default(synced)
+roam: 1 remote file(s) kept local by your scope rules:
+roam: 2 remote path(s) are refused by this device's local rules or opt-in settings and were not written or deleted: roam/installed-plugins.json
+roam: 3 bundled path(s) are unchanged and were neither rewritten nor backed up
+roam: 0 file(s) written, 0 deleted
+  3d7ffb6a8e27 [active]
+    Name:      roam-probe
+    Next run:  2026-11-07T17:20:31.827637-08:00
+
+===== home A publishes a second job; home B's pull must fail CLOSED while another process holds B's cron lock =====
+Created job: ddd88750b18d
+  Name: roam-probe-2
+  Schedule: every 45m
+roam: bundle bundles/000003-alpha-38cbc7f652d2.roam
+roam: covered root HOME_A — profiles: default(synced)
+roam: another process holds Hermes's cron lock (HOME_B/cron/.jobs.lock); the cron part of this install failed CLOSED and nothing was written — close the other hermes process or wait for it to finish, then retry
+pull wall time under the foreign lock: 31s (bounded wait is 30s)
+
+===== with the lock released, the same pull succeeds and the second job lands PAUSED too =====
+roam: cron/jobs.json: 1 pulled cron job(s) land PAUSED — a pulled job never starts on this device by itself; resume each one explicitly with; `hermes cron resume ddd88750b18d`
+  3d7ffb6a8e27 [active]
+    Name:      roam-probe
+    Next run:  2026-11-07T17:20:46.562014-08:00
+  ddd88750b18d [paused]
+    Name:      roam-probe-2
+    Next run:  None
+LIVE PROOF DONE

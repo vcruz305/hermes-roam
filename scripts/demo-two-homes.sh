@@ -633,5 +633,23 @@ grep -q "work(synced)" "$OUT" \
   || { echo "FAIL: the profile-context status did not name the profile sync state" >&2; exit 1; }
 echo "verified: hermes -p work roam status reports the ROOT home and the profile sync state"
 
+say "stage 6 — the terminal-only auto verb flips both switches and reports them"
+runlog alpha roam auto on
+grep -q "auto_push=true auto_pull_shared=true" "$OUT" \
+  || { echo "FAIL: auto on did not set both switches" >&2; exit 1; }
+grep -qE "auto_push: *true" "$BASE/alpha/config.yaml" \
+  || { echo "FAIL: auto_push is not true in the root config" >&2; exit 1; }
+grep -qE "auto_pull_shared: *true" "$BASE/alpha/config.yaml" \
+  || { echo "FAIL: auto_pull_shared is not true in the root config" >&2; exit 1; }
+runlog alpha roam auto status
+grep -q "auto_push    true" "$OUT" \
+  || { echo "FAIL: auto status does not show auto_push true" >&2; exit 1; }
+grep -q "auto_pull_shared true" "$OUT" \
+  || { echo "FAIL: auto status does not show auto_pull_shared true" >&2; exit 1; }
+runlog alpha roam auto off
+grep -qE "auto_push: *false" "$BASE/alpha/config.yaml" \
+  || { echo "FAIL: auto off did not clear auto_push" >&2; exit 1; }
+echo "verified: auto on/off set and clear BOTH switches; status reports them"
+
 say "PROOF COMPLETE — both backends and the opt-in session archive round-tripped under real Hermes"
 echo "artifacts under: $BASE (remove it to clean up)"

@@ -16,6 +16,7 @@ You move between a desktop and a laptop and your Hermes setup drifts: the skill 
 - **Every profile and bot.** `profile.yaml` and each profile's soul, memories, skills, and skins travel as working Hermes profiles; roam resolves the covered root home from any profile context and covers the whole tree, one writer at a time.
 - **Per-device boundaries that hold.** Hermes's ~58 bundled skills stay on each device (its own Hermes keeps updating them), and the opt-in session archive is read-only everywhere it lands — never resumable, never re-pushed.
 - **Fast and fail-closed.** Commands finish in about two seconds and an unreachable remote fails in 12–17 s with a real error — a cron job or gateway is never left hanging.
+- **Auto sync, one command, terminal only.** `hermes roam auto on` turns on both session-boundary switches: a debounced push at session end (only when shared files changed) and a start-of-session pull of only `skills/`, `memories/`, and `SOUL.md` — never `config.yaml`, never over local edits. No agent tool can enable it.
 
 ## Contents
 
@@ -81,17 +82,18 @@ vps / work: 1 session(s), 1.0 kB total
 On the first machine:
 
 ```sh
-# 1. Install. The GitHub shorthand works today; once the catalog PR merges
-#    it is plain `hermes plugins install hermes-roam`. From a local
-#    checkout: `hermes plugins install file:///path/to/hermes-roam`.
+# 1. Install. The GitHub shorthand works today; once the catalog PR is
+#    admitted to the Hermes catalog it is plain
+#    `hermes plugins install hermes-roam`. From a local checkout:
+#    `hermes plugins install file:///path/to/hermes-roam`.
 hermes plugins install vcruz305/hermes-roam
 hermes plugins enable hermes-roam      # installs arrive disabled
 
 # 2. Generate the archive key (32 random bytes) and keep it private.
 python3 -c "import secrets;print(secrets.token_urlsafe(32))"
 
-# 3. Put it in the active home's .env as ROAM_ARCHIVE_KEY=... (type it in
-#    yourself — never paste secrets into chat), then configure the backend.
+# 3. Put it in {home}/.env as ROAM_ARCHIVE_KEY=... (type it in yourself —
+#    never paste secrets into chat), then configure the backend.
 #    Cloudflare R2 / S3 — for R2 the endpoint is
 #    https://<account_id>.r2.cloudflarestorage.com, the region is the
 #    literal "auto", and the API token is scoped to Object Read & Write on
@@ -138,6 +140,16 @@ hermes roam pull --apply --overwrite-conflicts   # remote wins; backups kept
 
 The bundled `roam-setup` skill walks a user through all of this in chat.
 
+### Auto sync
+
+```sh
+hermes roam auto on        # both switches: session-end push + session-start pull
+hermes roam auto status    # show both switches, the debounce, the pending flag
+hermes roam auto off       # both off
+```
+
+One terminal command, both switches, root home only (a profile context writes the root config, like every other roam verb; `on`/`off` refuse before `hermes roam init`). What it does: at session END roam pushes ONLY when shared files changed, debounced by `push_debounce_seconds` (default 300 s; a failed or killed auto-push is reported at the next session start). At session START roam pulls ONLY `skills/`, `memories/`, and `SOUL.md` — never `config.yaml` or any other host-scoped file, and never over files changed locally since the last sync; the remote-ahead notice still fires for the full pull that remains. Enabling unattended pulls is the user's decision: there is no agent tool, and the `/roam auto` slash form is read-only status.
+
 ## What syncs — the three tiers
 
 This is the whole contract, up front. Every file in the home is classified
@@ -161,7 +173,7 @@ the defaults are an ALLOWLIST — an unknown file can never leak into a bundle.
 **Optional, off by default — each device opts in itself:**
 
 - **Session archive** (`sync_sessions`): publish a READ-ONLY archive of this device's session transcripts — the sessions of EVERY home of the root (the root home itself is namespace `default`, plus each `profiles/<name>/`), exported with Hermes's own `hermes sessions export --format md --redact`, one run per home, and published under this device's private bundle namespace (`archive/sessions/<device>/<profile>/`) under ONE shared cap of `sessions_max_mb` (default 50 MB, globally newest transcripts first). Enable it with `hermes config set plugins.entries.hermes-roam.settings.sync_sessions true`. The raw `sessions/` folder never travels, nothing is ever resumed or re-run, and no other device can replace this device's namespace. Devices that pull receive the archive read-only under `<home>/roam/session-archive/<device>/<profile>/` — reading needs no opt-in, only publishing does — and list it with `hermes roam sessions`, grouped by device and profile; a pulled archive can never be re-pushed, and archived sessions can never be resumed. Only finished sessions are exported (Hermes's export skips a session that is still open, such as a running gateway chat); one is picked up by the first push after it ends. Transcripts travel encrypted, but Hermes's `--redact` pass is best-effort pattern matching: **an archived transcript may still contain anything you typed**, including secrets you pasted into a session.
-- **Cron job definitions** (`sync_cron`): syncs ONLY the job definitions (`cron/jobs.json`, top level and per profile) — never run output, logs, locks, or telemetry stamps, which are machine-local. Enable with `hermes config set plugins.entries.hermes-roam.settings.sync_cron true`. A pulled job definition still needs explicit scheduling on the receiving device.
+- **Cron job definitions** (`sync_cron`): syncs ONLY the job definitions (`cron/jobs.json`, top level and per profile) — never run output, logs, locks, or telemetry stamps, which are machine-local. Enable with `hermes config set plugins.entries.hermes-roam.settings.sync_cron true`. A pulled job NEVER starts on the receiving device by itself: every job new to that device or whose definition changed lands PAUSED (Hermes's own paused representation), the pull output lists each one with the exact `hermes cron resume <id>` command to approve it, and the install runs under Hermes's own cron lock (`.jobs.lock`, bounded wait — a lock held by another hermes process fails the pull closed with nothing written). A job already present with the same definition keeps that device's own enabled/paused state, local-only jobs are never deleted, and the paused state never travels back to pause the origin.
 - **Hooks** (`hooks/` and friends): not a setting — opt in per device via a
   `shared:` entry in `roam/rules.yaml`. Hooks are executable code, so opting
   in means choosing to run the other machine's code.
@@ -506,10 +518,11 @@ root home and every profile's `synced`/`excluded` state.
 | `hermes roam history [path] [--json]` | every version the remote store still holds, newest first (40-line cap in human output); only bundles that verify under the fleet's archive key are listed | nothing |
 | `hermes roam restore <path> --generation N [--apply]` | recover one file version; plan only without `--apply`; with `--apply` the journaled, backed-up install runs, local/ignored paths are refused, configs are merged — never written verbatim — and the result is left as a local change; no agent tool, no slash form | only with `--apply` |
 | `hermes roam rules [--init]` | print the effective scope rules — ending with the three tiers evaluated against this device — or write the commented template (never overwrites an existing file) | only with `--init` |
+| `hermes roam auto [on\|off\|status]` | show or set BOTH automatic session-boundary switches (`auto_push`, `auto_pull_shared`) for the root home; `on`/`off` refuse before init (exit 1); status shows both switches, the debounce and the hooks' pending flag; terminal-only — no agent tool, and the `/roam auto` slash form is read-only status | root config only (`on`/`off`) |
 
 ### Slash command
 
-Short, Telegram-friendly output, no tables: `/roam status`, `/roam push`, `/roam pull`, `/roam pull apply` (the only form that writes), `/roam pull apply overwrite` (also overwrites conflicting paths), `/roam diff`, `/roam devices`, `/roam sessions` (read-only listing of pulled session archives — never a transcript body; printing one is the terminal command above), `/roam doctor`, `/roam history` (read-only summary of the first ten recoverable versions; restoring is a terminal command), `/roam help`. Extra words are validated before anything runs: `push` accepts only `force` and `dry`/`dry-run`, `pull` only `apply` and `overwrite`, and anything else is rejected with the valid forms.
+Short, Telegram-friendly output, no tables: `/roam status`, `/roam push`, `/roam pull`, `/roam pull apply` (the only form that writes), `/roam pull apply overwrite` (also overwrites conflicting paths), `/roam diff`, `/roam devices`, `/roam sessions` (read-only listing of pulled session archives — never a transcript body; printing one is the terminal command above), `/roam auto` (read-only status of the automatic sync switches — enabling them is a terminal decision, never the agent's), `/roam doctor`, `/roam history` (read-only summary of the first ten recoverable versions; restoring is a terminal command), `/roam help`. Extra words are validated before anything runs: `push` accepts only `force` and `dry`/`dry-run`, `pull` only `apply` and `overwrite`, and anything else is rejected with the valid forms.
 
 ### Tools
 
@@ -563,7 +576,20 @@ Review and test history: two adversarial review rounds produced 57 proven findin
   `hermes sessions export <tmpdir> --format md --redact --after 2000-01-01
   --force` as an argv subprocess (never a shell), with `HERMES_HOME` set to
   the active home, stdin closed, and a hard timeout inside the operation
-  deadline. No other shell commands are spawned anywhere in the plugin.
+  deadline. `hermes roam auto on|off` additionally runs Hermes's own
+  `hermes config set plugins.entries.hermes-roam.settings.<key> <value>`
+  twice (once per switch) as an argv subprocess (never a shell), with
+  `HERMES_HOME` pinned to the ROOT home so a profile context still writes
+  the root config, stdin closed, and a hard 60 s timeout; a non-zero exit
+  or a timeout fails the verb closed. No other shell commands are spawned
+  anywhere in the plugin.
+  Every git subprocess runs with an ALLOWLISTED environment — PATH, HOME,
+  identity/shell/temp/locale/timezone variables, the ssh agent socket,
+  `GIT_*`, proxies, and the Windows system variables — never a copy of the
+  parent environment, so unrelated secrets (a model API key,
+  `ROAM_ARCHIVE_KEY`, a cloud secret) can never reach a git child; the
+  fail-fast overrides (`GIT_TERMINAL_PROMPT=0`, the BatchMode ssh command,
+  the low-speed floors) land on top of the allowlist.
 - **Files read.** The Hermes home being synced, excluding everything
   classified local or ignored — in particular this plugin never reads
   `.env`, `auth.json`, or any other credential file; secrets come only
@@ -580,7 +606,12 @@ Review and test history: two adversarial review rounds produced 57 proven findin
   clone, and — read-only, mode 0444 — `roam/session-archive/<device>/`
   when a pull installs another device's published session archive.
   Files elsewhere in the home are written only by `pull --apply` /
-  `roam_pull` with `apply=true`, after the backup copy.
+  `roam_pull` with `apply=true`, after the backup copy. With `sync_cron`
+  on, an installing pull additionally takes Hermes's own cron lock — the
+  `.jobs.lock` flock file inside each cron directory, with the same bounded
+  30 s wait Hermes's cron store uses — for the whole journaled install and
+  rollback; a lock held by another hermes process fails the pull closed
+  with nothing written.
 - **Background threads.** The session hooks above may start daemon threads.
   A watchdog logs an overrun at WARNING (120 s for the auto-push, 15 s for
   the start check) but cannot stop the thread; the work is bounded by the
@@ -620,7 +651,9 @@ Review and test history: two adversarial review rounds produced 57 proven findin
   `--redact` pass is best-effort: an archived transcript may still contain
   anything you typed.
 - **Cron sync is definitions-only and opt-in.** Run output, locks, and
-  telemetry never travel.
+  telemetry never travel. A pulled job NEVER runs on arrival: it lands
+  paused, under Hermes's own cron lock, and only an explicit
+  `hermes cron resume <id>` on the receiving device can start it.
 - **`config.yaml` comments are lost on merge.** The merge round-trips
   through PyYAML, which does not preserve comments; content and key order
   are preserved, comments are not.

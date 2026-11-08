@@ -11,7 +11,11 @@ and paths only ever appear when they pass the fleet charsets.
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
+import os
+import shutil
+import subprocess
 import time
 
 from . import settings
@@ -179,6 +183,18 @@ def add_cli_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     rules.add_argument("--init", action="store_true",
                         help="write a commented template to <home>/roam/rules.yaml")
     rules.add_argument("--json", action="store_true", help="print machine-readable JSON")
+
+    auto = subs.add_parser(
+        "auto", help="show or set the automatic session-boundary sync switches"
+    )
+    auto.add_argument(
+        "action", nargs="?", default="status", choices=("on", "off", "status"),
+        help="on: enable the session-end auto-push and the session-start "
+             "auto-pull of skills/memories/SOUL.md; off: disable both; "
+             "status (default): show both switches, the debounce and the "
+             "hooks' state",
+    )
+    auto.add_argument("--json", action="store_true", help="print machine-readable JSON")
     return parser
 
 
@@ -204,6 +220,8 @@ def _run(args: argparse.Namespace) -> int:
             return _cmd_init(args, as_json)
         if args.command == "sessions":
             return _cmd_sessions(args, as_json)
+        if args.command == "auto":
+            return _cmd_auto(args, as_json)
         engine = settings.build_engine()
         return {
             "status": lambda: _cmd_status(engine, as_json),
@@ -529,6 +547,11 @@ def _cmd_restore(engine, args: argparse.Namespace, as_json: bool) -> int:
     recovered = result.get("recovered")
     if recovered:
         print(f"roam: recovered: {recovered}")
+    for note in result.get("notes") or []:
+        # 0.5.3: the engine's cron pause listing (with the exact
+        # `hermes cron resume` command per job id) reaches both the plan
+        # review and the applied restore.
+        print(f"roam: {_short(note, _NOTE_VALUE)}")
     if not result.get("applied"):
         print(
             f"roam: plan only — generation {result.get('generation')} still holds "
@@ -708,6 +731,131 @@ def _cmd_init(args: argparse.Namespace, as_json: bool) -> int:
         print(f"  {index}. {_short(step, 160)}")
     print("roam: never paste secret values into chat or files roam writes")
     _print_covered_root()
+    return 0
+
+
+def find_hermes() -> str:
+    """Locate the hermes executable on PATH; '' when it cannot be found."""
+    return shutil.which("hermes") or ""
+
+
+_AUTO_KEYS = ("auto_push", "auto_pull_shared")
+# Hard cap on the config-set child (rule 12: every wait bounded). The child
+# is hermes's own CLI config setter — argv only, stdin closed so no prompt
+# can ever block, and a non-zero exit or a timeout fails the verb CLOSED.
+_AUTO_SET_TIMEOUT_SECONDS = 60
+
+
+def _auto_config_set(home, key: str, value: str) -> tuple[bool, str]:
+    """Set ONE plugin setting for the ROOT home through Hermes's own CLI
+    (`hermes config set plugins.entries.hermes-roam.settings.KEY VALUE`).
+
+    Disciplined argv subprocess, never a shell; stdin closed so nothing can
+    prompt; HERMES_HOME pinned to the ROOT home so a profile context still
+    writes the root config; a hard timeout. Returns (ok, message); ok=False
+    carries a fixed human summary — the child's output text is never
+    relayed (it is not needed and may be noisy).
+    """
+    hermes_exe = find_hermes()
+    if not hermes_exe:
+        return False, "the hermes executable was not found on PATH"
+    argv = [
+        hermes_exe, "config", "set",
+        f"plugins.entries.hermes-roam.settings.{key}", value,
+    ]
+    env = dict(os.environ)
+    env["HERMES_HOME"] = str(home)
+    try:
+        proc = subprocess.run(
+            argv,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            timeout=_AUTO_SET_TIMEOUT_SECONDS,
+            env=env,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return False, "the config-set subprocess exceeded its hard timeout"
+    except OSError:
+        return False, "the config-set subprocess could not be started"
+    if proc.returncode != 0:
+        return False, "the config-set subprocess failed (non-zero exit)"
+    return True, ""
+
+
+def _auto_switch_rows(payload: dict) -> list[str]:
+    """The status rows shared by the terminal verb and the read-only
+    `/roam auto` form: both switches, the debounce, the hooks' own state,
+    and the one-line statement of exactly what auto does and does not do."""
+    last = float(payload.get("last_auto_push_at") or 0)
+    rendered = (
+        datetime.datetime.fromtimestamp(last, datetime.UTC)
+        .strftime("%Y-%m-%d %H:%M:%S UTC")
+        if last > 0 else "never"
+    )
+    rows = [
+        _row("auto_push", "true" if payload.get("auto_push") else "false"),
+        _row("auto_pull_shared", "true" if payload.get("auto_pull_shared") else "false"),
+        _row("debounce", f"{int(payload.get('push_debounce_seconds') or 0)}s"),
+        _row("last auto-push", rendered),
+        _row("pending", "yes — the last auto-push did not finish; run `hermes roam push` now"
+             if payload.get("pending_auto_push") else "no"),
+    ]
+    rows.append(_short(settings.AUTO_EXPLANATION, 400))
+    return rows
+
+
+def _cmd_auto(args: argparse.Namespace, as_json: bool) -> int:
+    """`hermes roam auto on|off|status` — terminal-only, ROOT home.
+
+    on/off run Hermes's own config setter as a bounded argv subprocess with
+    HERMES_HOME pinned to the ROOT home (a profile context writes the root
+    config, like every other verb) and refuse before `hermes roam init`.
+    status is read-only. No slash form or agent tool can enable auto —
+    enabling unattended sync is the user's decision.
+    """
+    root = settings.roam_home()
+    if args.action in ("on", "off"):
+        if not (root / "roam" / "state.json").is_file():
+            message = (
+                "roam is not initialized on this home — run `hermes roam init` "
+                "first; auto sync only works on an initialized home"
+            )
+            if as_json:
+                _json({"error": message})
+            else:
+                print(f"roam: {message}")
+            return 1
+        value = "true" if args.action == "on" else "false"
+        applied: list[str] = []
+        for key in _AUTO_KEYS:
+            ok, message = _auto_config_set(root, key, value)
+            if not ok:
+                if as_json:
+                    _json({"error": f"setting {key} failed: {message}",
+                           "applied": applied})
+                else:
+                    print(f"roam: setting {key} failed: {message}")
+                    if applied:
+                        print(f"roam: applied before the failure: {', '.join(applied)}")
+                return 1
+            applied.append(key)
+        if as_json:
+            _json({"auto_push": value == "true",
+                   "auto_pull_shared": value == "true",
+                   "applied": applied})
+        else:
+            print(f"roam: auto_push={value} auto_pull_shared={value} written to the "
+                  f"root home's config by hermes config set")
+            print("roam: run `hermes roam auto status` in a fresh command to confirm")
+            print(_short(settings.AUTO_EXPLANATION, 400))
+        return 0
+    payload = settings.auto_status_payload()
+    if as_json:
+        _json(payload)
+        return 0
+    for row in _auto_switch_rows(payload):
+        print(f"roam: {row}")
     return 0
 
 

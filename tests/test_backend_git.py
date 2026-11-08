@@ -249,6 +249,61 @@ def test_git_env_respects_core_ssh_command() -> None:
     assert "BatchMode=yes" in env["GIT_SSH_COMMAND"]
 
 
+# ------------------------------------------------- 0.5.3 env allowlist
+
+def test_git_env_is_built_from_an_allowlist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """0.5.3 review fix (teknium1): the git child env is an ALLOWLIST, not a
+    copy of the parent — unrelated secrets (OPENAI_API_KEY, ROAM_ARCHIVE_KEY)
+    never reach git, while the variables git actually needs survive."""
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-not-a-real-key")
+    monkeypatch.setenv("ROAM_ARCHIVE_KEY", "not-a-real-roam-key")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "not-an-aws-key")
+    monkeypatch.setenv("PATH", "/usr/bin:/bin")
+    monkeypatch.setenv("HOME", "/home/tester")
+    monkeypatch.setenv("LANG", "C.UTF-8")
+    monkeypatch.setenv("LC_ALL", "C.UTF-8")
+    monkeypatch.setenv("TZ", "UTC")
+    monkeypatch.setenv("SSH_AUTH_SOCK", "/run/ssh-agent.sock")
+    monkeypatch.setenv("http_proxy", "http://127.0.0.1:9")
+    monkeypatch.setenv("GIT_CONFIG_COUNT", "0")
+    env = _git_env()
+    assert "OPENAI_API_KEY" not in env
+    assert "ROAM_ARCHIVE_KEY" not in env
+    assert "AWS_SECRET_ACCESS_KEY" not in env
+    assert env["PATH"] == "/usr/bin:/bin"
+    assert env["HOME"] == "/home/tester"
+    assert env["LANG"] == "C.UTF-8"
+    assert env["LC_ALL"] == "C.UTF-8"
+    assert env["TZ"] == "UTC"
+    assert env["SSH_AUTH_SOCK"] == "/run/ssh-agent.sock"
+    assert env["http_proxy"] == "http://127.0.0.1:9"
+    assert env["GIT_CONFIG_COUNT"] == "0"
+    # the fail-fast overrides still land on top of the allowlist
+    assert env["GIT_TERMINAL_PROMPT"] == "0"
+
+
+def test_git_child_process_never_sees_unrelated_secrets() -> None:
+    """Real-child proof: spawn /usr/bin/env with the git env and assert the
+    unrelated secrets are absent from the actual child environment."""
+    import os as os_mod
+    import unittest.mock as mock
+
+    env = dict(os_mod.environ)
+    env["OPENAI_API_KEY"] = "***"
+    env["ROAM_ARCHIVE_KEY"] = "child-proof"
+    with mock.patch("roam.backends.git.os.environ", env):
+        child_env = _git_env()
+    proc = subprocess.run(
+        ["/usr/bin/env"], env=child_env, capture_output=True, text=True, timeout=30
+    )
+    assert proc.returncode == 0
+    assert "OPENAI_API_KEY" not in proc.stdout
+    assert "ROAM_ARCHIVE_KEY" not in proc.stdout
+    assert "GIT_TERMINAL_PROMPT" in proc.stdout
+
+
 def test_redact_never_leaks_but_keeps_scp_style() -> None:
     assert _redact("git@github.com:owner/repo.git") == "git@github.com:owner/repo.git"
     assert _redact("see https://example.com/x.git docs") == "see https://example.com/x.git docs"

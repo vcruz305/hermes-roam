@@ -152,3 +152,34 @@ explicitly accepted with the reason given; nothing is hidden.
    still succeeds, and the previously published archive is kept. No
    profile context can narrow the export to its own sessions or publish
    into another device's or profile's namespace.
+
+14. **0.5.3 git child environment is an allowlist, and the cron install
+    runs under Hermes's own cron lock.** (a) Every git subprocess in the git
+    backend runs with an environment built from an ALLOWLIST — PATH, HOME,
+    USER, LOGNAME, SHELL, temp dirs, LANG/LC_*, TZ, TERM, the ssh agent
+    socket, every `GIT_*` knob, the proxy variables in both cases,
+    XDG_CONFIG_HOME, and the Windows system variables — never a copy of the
+    parent environment, so unrelated secrets (a model API key,
+    `ROAM_ARCHIVE_KEY`, a cloud secret) can never reach a git child; the
+    fail-fast overrides (`GIT_TERMINAL_PROMPT=0`, the BatchMode ssh
+    command, the http low-speed floors) land on top of the allowlist.
+    (b) With `sync_cron` enabled, an installing pull takes the same
+    cross-process cron lock Hermes's own cron store uses — the
+    `.jobs.lock` flock file inside each cron directory (`fcntl` on POSIX,
+    `msvcrt` on Windows), replicated from Hermes's read-only source
+    without importing any Hermes cron module — with the same bounded
+    30 s wait, for the whole journaled install and its rollback. A lock
+    held by another hermes process fails the cron part closed with a
+    clear error: nothing is written unlocked and nothing hangs. The
+    lock files themselves are machine-local and never travel.
+
+15. **0.5.3 `hermes roam auto on|off` config-set subprocess, disclosed.**
+    The terminal-only auto verb flips BOTH automatic session-boundary
+    switches by running Hermes's own config setter — `hermes config set
+    plugins.entries.hermes-roam.settings.auto_push <value>` and the same
+    for `auto_pull_shared` — as two argv subprocesses (never a shell), with
+    `HERMES_HOME` pinned to the ROOT home so a profile context still
+    writes the root home's config, stdin closed so nothing can prompt, and
+    a hard 60 s timeout; a non-zero exit or a timeout fails the verb
+    closed. `on`/`off` refuse before `hermes roam init`. There is no agent
+    tool for auto and the `/roam auto` slash form is read-only status.

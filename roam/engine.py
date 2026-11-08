@@ -23,8 +23,8 @@ from typing import Any
 # Relative imports only: the package loads both as top-level ``roam`` (tests,
 # source checkout) and as ``hermes_plugins.<slug>.roam`` inside Hermes, and
 # every sibling must resolve to the same module object in either identity.
+from . import cron_install, restore
 from . import head as head_mod
-from . import restore
 from . import session_archive as archive_mod
 from .backends.base import Backend
 from .errors import (
@@ -1685,6 +1685,7 @@ class Engine:
     ) -> dict:
         manifest_entry = target["manifest"].get(path)
         staged = target["staging"] / path
+        restore_notes: list[str] = []
         if _is_config_path(path):
             if not staged.is_file():
                 raise RoamError(
@@ -1705,6 +1706,24 @@ class Engine:
                 raise VerifyError(
                     "the restored member does not match its bundle manifest"
                 )
+            if cron_install.is_cron_jobs_path(path):
+                # 0.5.3: a restored cron store gets the same paused-install
+                # merge as a pull — no restored job ever runs on its own.
+                local_path = self.home / path
+                local_text = (
+                    local_path.read_text(encoding="utf-8", errors="replace")
+                    if local_path.is_file()
+                    else None
+                )
+                merged = cron_install.merge_store(
+                    local_text, staged.read_text(encoding="utf-8", errors="replace")
+                )
+                merged_bytes = merged.text.encode("utf-8")
+                staged.write_bytes(merged_bytes)
+                sha = _sha256_bytes(merged_bytes)
+                size = len(merged_bytes)
+                if merged.paused_ids or merged.malformed_ids:
+                    restore_notes.append(cron_install.pause_note(path, merged))
             mode = int(manifest_entry.get("mode") or 0o644) & 0o777
             plan = restore.InstallPlan(
                 to_write=(restore.PlannedFile(path, staged, sha, size, mode, scope),)
@@ -1720,6 +1739,7 @@ class Engine:
             "backup_dir": "",
             "files_written": 0,
             "config_merged": False,
+            "notes": restore_notes,
             "recovered": recovered,
         }
         if not apply:
@@ -1797,6 +1817,10 @@ class Engine:
             skipped_local: list[str] = []
             unapproved: list[str] = []
             archive_planned = 0
+            # 0.5.3: pulled cron stores are merged to a paused install and
+            # never land as-is (see the merge below).
+            cron_notes: list[str] = []
+            cron_installed: dict[str, dict] = {}
             # The planning manifest is the SIGNED HEAD's file list, not the
             # bundle's inner zip manifest: carried members (R1) and the
             # stripped configs travel as bundle members outside the zip
@@ -1848,6 +1872,18 @@ class Engine:
             for relpath, entry in (state.base_files or {}).items():
                 if not _prefix_allowed(relpath, include_prefixes):
                     continue
+                if (
+                    cron_install.is_cron_jobs_path(relpath)
+                    and relpath not in manifest
+                    and (self.home / relpath).is_file()
+                ):
+                    # 0.5.3: the remote no longer carries this cron store. A
+                    # pull never deletes this device's own job definitions —
+                    # local-only cron jobs are untouched — so the store is
+                    # never planned for deletion; the local copy stays a
+                    # visible local change the next push can publish.
+                    cron_notes.append(cron_install.kept_store_note(relpath))
+                    continue
                 enriched = dict(entry) if isinstance(entry, dict) else {}
                 # classification on the HEAD's path; the install key is the
                 # read-only remap for session archive members (0.4.1)
@@ -1866,6 +1902,43 @@ class Engine:
                 if scope in (Scope.LOCAL, Scope.IGNORED) or scope not in classes:
                     # a remote deletion this device's local policy refuses to perform
                     skipped_local.append(relpath)
+            # 0.5.3: a pulled cron store (cron/jobs.json, top level and per
+            # profile) NEVER installs as-is. It is merged into this device's
+            # own store first: every job NEW to this device or whose
+            # DEFINITION changed lands PAUSED with Hermes's own pause_job
+            # representation, a job already present with the same definition
+            # keeps this device's own enabled/paused state and runtime
+            # fields, and local-only jobs are untouched. The staged member
+            # is rewritten to the merged store so the plan, the journaled
+            # install (which runs under Hermes's own cron lock, see
+            # restore.apply), and the recorded sync point all describe the
+            # same content — the paused rewrite never counts as local dirt
+            # and can never pause the origin's copy on its way back.
+            for relpath in sorted(manifest):
+                if not cron_install.is_cron_jobs_path(relpath):
+                    continue
+                staged_member = staging_dir / relpath
+                local_path = self.home / relpath
+                local_text = (
+                    local_path.read_text(encoding="utf-8", errors="replace")
+                    if local_path.is_file()
+                    else None
+                )
+                merged = cron_install.merge_store(
+                    local_text,
+                    staged_member.read_text(encoding="utf-8", errors="replace"),
+                )
+                merged_bytes = merged.text.encode("utf-8")
+                staged_member.write_bytes(merged_bytes)
+                digest = _sha256_bytes(merged_bytes)
+                manifest[relpath]["sha256"] = digest
+                manifest[relpath]["size"] = len(merged_bytes)
+                cron_installed[relpath] = {
+                    "sha256": digest,
+                    "size": len(merged_bytes),
+                }
+                if merged.paused_ids or merged.malformed_ids:
+                    cron_notes.append(cron_install.pause_note(relpath, merged))
             # R1: this verified bundle becomes the carry-forward source — but
             # only after the head/bundle cross-check above passed. The BASE
             # config digests are the ACCEPTED ones from the local state first
@@ -1916,6 +1989,10 @@ class Engine:
         # R3: the plan's per-path outcomes (kept-local configs, kept-deleted
         # paths) must reach the user; the engine relays them verbatim.
         notes: list[str] = list(plan.notes)
+        # 0.5.3: the cron pause listing (with the exact `hermes cron resume`
+        # command per job id) reaches every surface — the plan review and
+        # the apply output alike — before any other notice.
+        notes.extend(cron_notes)
         if include_prefixes is not None:
             notes.append(
                 "restricted pull: only paths under the include prefixes were considered; "
@@ -2043,6 +2120,17 @@ class Engine:
         for relpath in conflicts:
             if relpath in (state.base_files or {}):
                 new_base[relpath] = state.base_files[relpath]
+        for relpath, entry in cron_installed.items():
+            if relpath in conflicts or relpath not in new_base:
+                # a kept-local conflict stays a visible conflict; the local
+                # cron store is never silently accepted as synced
+                continue
+            # 0.5.3: the sync point records the MERGED (paused-install)
+            # store this pull actually installed or proved unchanged, never
+            # the origin's copy — the paused rewrite is not local dirt, and
+            # a store this device kept for itself never shows as phantom
+            # dirt either.
+            new_base[relpath] = {**new_base[relpath], **entry}
         if include_prefixes is None:
             updated.update(
                 last_pulled_generation=signed.generation,

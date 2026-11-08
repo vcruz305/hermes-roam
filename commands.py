@@ -21,7 +21,7 @@ from .tools import (
     safe_title,
 )
 
-_VERBS = ("status", "push", "pull", "diff", "devices", "sessions", "doctor", "history", "help")
+_VERBS = ("status", "push", "pull", "diff", "devices", "sessions", "auto", "doctor", "history", "help")
 _MAX_LINES = 20
 _MAX_CHARS = 160
 # Engine-authored pull notices (kept key names, first-pull and brand-new-
@@ -59,7 +59,10 @@ def _help(note: str = "") -> str:
             "roam sessions show <device> <profile> <session_id>`. history "
             "lists the versions the remote store still holds; recovering "
             "one is a terminal command: hermes roam restore <path> "
-            "--generation N --apply. The roam_pull tool refuses apply=true "
+            "--generation N --apply. auto is a read-only status form; "
+            "enabling or disabling automatic session-boundary sync is the "
+            "user's decision on the terminal only: hermes roam auto "
+            "on|off|status. The roam_pull tool refuses apply=true "
             "unless the user enabled allow_agent_apply. Secrets are never "
             "synced.")
     return f"Roam: {note}\n{text}" if note else f"Roam: {text}"
@@ -78,6 +81,10 @@ def handle(raw_args: str, **kwargs) -> str:
             # no engine needed: the read-only archive listing reads local
             # files only and never touches the backend
             return _sessions()
+        if verb == "auto":
+            # READ-ONLY status only: enabling unattended pulls is the
+            # user's decision, made on the terminal — never here.
+            return _auto()
         errors = roam_module("errors")
         try:
             engine = settings.build_engine()
@@ -100,6 +107,29 @@ def handle(raw_args: str, **kwargs) -> str:
         return _doctor(engine)
     except Exception as exc:  # noqa: BLE001 - slash handlers never raise
         return f"Roam error: unexpected failure: {safe_error_text(exc)}"
+
+
+def _auto() -> str:
+    """READ-ONLY `/roam auto` status (0.5.3): both switches, the debounce,
+    and the hooks' pending flag. Enabling auto is the user's decision, on
+    the terminal only — this form can never turn anything on or off."""
+    try:
+        payload = settings.auto_status_payload()
+    except Exception as exc:  # noqa: BLE001 - slash handlers never raise
+        return f"Roam error: {safe_error_text(exc)}"
+    lines = [
+        "auto switches (read-only status): auto_push "
+        f"{payload['auto_push']}, auto_pull_shared {payload['auto_pull_shared']}, "
+        f"debounce {payload['push_debounce_seconds']}s",
+        "last auto-push "
+        + ("pending — the previous auto-push did not finish; run `hermes roam push` now"
+           if payload["pending_auto_push"] else "not pending"),
+    ]
+    lines.append(
+        "read-only form: enabling or disabling auto sync is the user's "
+        "decision on the terminal only — `hermes roam auto on|off|status`"
+    )
+    return _bullets(lines)
 
 
 def _status(engine) -> str:

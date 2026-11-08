@@ -1,5 +1,72 @@
 # Changelog
 
+## 0.5.3 — 2026-11-08
+
+Catalog review fixes (teknium1) plus a terminal-only auto-sync switch.
+
+### Terminal-only `hermes roam auto on|off|status`
+
+- One command flips BOTH automatic session-boundary switches
+  (`auto_push` and `auto_pull_shared`) for the root home — a profile
+  context writes the root config, like every other verb — through
+  Hermes's own `hermes config set` run as a bounded argv subprocess
+  (stdin closed, `HERMES_HOME` pinned to the root, hard 60 s timeout,
+  non-zero exit fails closed). `on`/`off` refuse before
+  `hermes roam init`. `status` prints both switches,
+  `push_debounce_seconds`, the hooks' last-auto-push/pending state, and
+  one line stating exactly what auto does and does not do. Enabling
+  unattended pulls is the user's decision: there is no agent tool, and
+  the `/roam auto` slash form is read-only status. Proven live under real
+  Hermes 0.22.5: on → both true in the root config, status agrees, off →
+  both false, and `hermes -p <name> roam auto on` writes the root config
+  while the profile's own config is untouched.
+
+### Pulled cron jobs land PAUSED, under Hermes's own cron lock
+
+- With `sync_cron` on, `pull --apply` (and `restore`, and
+  `--overwrite-conflicts` — every install path) no longer writes the other
+  device's `cron/jobs.json` as-is. Every pulled job NEW to this device or
+  whose DEFINITION changed lands PAUSED with exactly Hermes 0.22.5's own
+  `pause_job` representation (`enabled=false`, `state="paused"`,
+  `paused_at`, `paused_reason`), and its scheduling/runtime fields are reset
+  to the pristine `create_job(paused=True)` values — no next run, no run
+  history, counters at zero: a job new to this device inherits nothing
+  from the authoring device. The pull output lists every landed job with
+  the exact `hermes cron resume <id>` command (ids go through the
+  untrusted-text sanitizer; only provably inert ids are embedded).
+- The install runs under Hermes's own cross-process cron lock — the same
+  `.jobs.lock` flock in each cron directory (`fcntl` on POSIX, `msvcrt` on
+  Windows) with the same bounded 30 s wait, replicated from Hermes's
+  read-only source without importing it. A lock held by another hermes
+  process fails the cron part CLOSED with a clear error: nothing is ever
+  written unlocked and nothing ever hangs. Rollback restores the previous
+  store under the same lock.
+- A job already present with the SAME definition (runtime/scheduling
+  fields excluded from the comparison, exactly the fields `cron/jobs.py`
+  owns at run time) keeps this device's own enabled/paused state and
+  runtime fields; local-only jobs are never deleted by a pull and a
+  concurrent local `hermes cron create` survives the install (Hermes's own
+  shrink-merge). The paused state is not local dirt and never round-trips:
+  a push carries definitions, and every receiver keeps its own enabled
+  state — a receiver pushing back cannot pause the origin's copy. The
+  README's earlier "still needs explicit scheduling" wording overstated
+  the old behavior; it is corrected here.
+- Live proof under real Hermes 0.22.5 (docs/cron-pause-proof.log): the
+  pulled job shows `paused` in `hermes cron list`, the printed resume
+  command works, the origin's copy stays enabled after pulling back, and a
+  foreign `.jobs.lock` fails the pull closed inside the bound.
+
+### Git children get an allowlisted environment
+
+- The git backend's subprocess environment is now built from an ALLOWLIST
+  (PATH, HOME, USER, LOGNAME, SHELL, temp dirs, LANG/LC_*, TZ, TERM,
+  SSH_AUTH_SOCK/SSH_AGENT_PID, GIT_*, proxy variables in both cases,
+  XDG_CONFIG_HOME, and the Windows system variables) instead of a copy of
+  the parent environment, so unrelated secrets — a model API key,
+  `ROAM_ARCHIVE_KEY`, a cloud secret — can never reach a git child. The
+  existing fail-fast overrides (`GIT_TERMINAL_PROMPT=0`, the BatchMode
+  ssh command, the low-speed floors) still land on top.
+
 ## 0.5.2 — 2026-11-07
 
 - `push --dry-run` with the session archive on now reports the real bundle

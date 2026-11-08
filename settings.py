@@ -365,6 +365,37 @@ def profile_sync_state(root: Path | None = None) -> list[dict]:
     return state
 
 
+def auto_status_payload() -> dict:
+    """The `roam auto` status payload: both switches, the debounce, and the
+    hooks' own last-auto-push/pending state. Read-only — assembling this
+    changes nothing. Shared by the terminal verb (`hermes roam auto status`)
+    and the read-only `/roam auto` form."""
+    conf = load_settings()
+    state = getattr(_ctx, "state", None) if _ctx is not None else None
+    last = 0.0
+    pending = False
+    if state is not None:
+        try:
+            last = float(state.get("last_auto_push_at", 0) or 0)
+        except (TypeError, ValueError):
+            last = 0.0
+        pending = bool(state.get("pending_auto_push", False))
+    return {
+        "auto_push": bool(conf.auto_push),
+        "auto_pull_shared": bool(conf.auto_pull_shared),
+        "push_debounce_seconds": int(conf.push_debounce_seconds),
+        "last_auto_push_at": last,
+        "pending_auto_push": pending,
+    }
+
+
+AUTO_EXPLANATION = (
+    "what auto does: pushes at session end when shared files changed "
+    "(debounced); pulls only skills, memories and SOUL.md at session start "
+    "— never config, never over local edits"
+)
+
+
 def hermes_version() -> str:
     """Running Hermes version: the canonical hermes_cli resolver, else 'unknown'.
 

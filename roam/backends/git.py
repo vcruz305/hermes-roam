@@ -145,8 +145,63 @@ def _fail_fast_ssh(command: str) -> str:
     return f"{command} {' '.join(missing)}"
 
 
+# 0.5.3: the git child environment is built from an ALLOWLIST, never from a
+# copy of the parent environment — an unrelated variable (a model API key,
+# ROAM_ARCHIVE_KEY, an S3 secret) must never reach a git subprocess. The
+# allowlist covers what git actually needs: the locator of every binary it
+# spawns (PATH), its config roots (HOME, XDG_CONFIG_HOME, USERPROFILE,
+# APPDATA on Windows), the identity and shell git derives defaults from,
+# temp dirs, locale/timezone, the agent socket for SSH keys, every GIT_*
+# knob (including a user's own GIT_SSH_COMMAND), the proxy variables in
+# both cases, and the Windows system variables the CRT requires.
+_ENV_ALLOWLIST = frozenset(
+    {
+        "PATH",
+        "HOME",
+        "USER",
+        "LOGNAME",
+        "SHELL",
+        "TMPDIR",
+        "TEMP",
+        "TMP",
+        "LANG",
+        "TZ",
+        "TERM",
+        "SSH_AUTH_SOCK",
+        "SSH_AGENT_PID",
+        "XDG_CONFIG_HOME",
+    }
+)
+_ENV_PREFIXES = ("LC_", "GIT_", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY")
+_WINDOWS_ALLOWLIST = frozenset(
+    {
+        "SYSTEMROOT",
+        "WINDIR",
+        "USERPROFILE",
+        "APPDATA",
+        "LOCALAPPDATA",
+        "PATHEXT",
+        "COMSPEC",
+    }
+)
+
+
+def _allowed_env_key(key: str) -> bool:
+    """Whether one parent-env variable is allowed into the git child env."""
+    if key in _ENV_ALLOWLIST:
+        return True
+    if key.upper().startswith(_ENV_PREFIXES):
+        return True
+    return os.name == "nt" and key in _WINDOWS_ALLOWLIST
+
+
 def _git_env(extra: dict[str, str] | None = None, ssh_command: str = "") -> dict[str, str]:
     """Environment for every git call: no prompts, no stalled transports.
+
+    The environment is an ALLOWLIST of the variables git needs plus the
+    fail-fast overrides below — everything else in the parent environment
+    (API keys, the roam archive key, cloud secrets) is dropped before the
+    first git command runs.
 
     The ssh transport is pinned to BatchMode (no human can be asked for a
     passphrase or a host-key decision), ConnectTimeout (a blackholed host
@@ -160,7 +215,11 @@ def _git_env(extra: dict[str, str] | None = None, ssh_command: str = "") -> dict
     https connect.
     """
 
-    env = os.environ.copy()
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if _allowed_env_key(key)
+    }
     env["GIT_TERMINAL_PROMPT"] = "0"
     env["GIT_HTTP_LOW_SPEED_LIMIT"] = _HTTP_LOW_SPEED_LIMIT
     env["GIT_HTTP_LOW_SPEED_TIME"] = _HTTP_LOW_SPEED_TIME

@@ -14,6 +14,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
+from . import cron_install
 from .errors import RestoreError
 from .model import Scope, canonical_json
 from .scope import is_config_path as _default_is_config
@@ -441,7 +442,12 @@ def _backup_file(home: Path, relpath: str, backup_dir: Path) -> bool:
     return True
 
 
-def _rollback(home: Path, record: dict, backup_dir: Path) -> tuple[int, int, int]:
+def _rollback(
+    home: Path,
+    record: dict,
+    backup_dir: Path,
+    locks: cron_install.CronLocks | None = None,
+) -> tuple[int, int, int]:
     """Restore every backed-up file, remove files roam itself created, and
     NEVER unlink a pre-existing file whose backup is missing (R5).
 
@@ -451,7 +457,13 @@ def _rollback(home: Path, record: dict, backup_dir: Path) -> tuple[int, int, int
     path without a backup (pruned backups, symlink targets) is left in
     place and counted ``unrecoverable`` instead of being destroyed.
     Journals written before the field existed are treated as fully
-    pre-existing: the safe, non-destructutive reading.
+    pre-existing: the safe, non-destructive reading.
+
+    0.5.3: a cron jobs.json is only ever restored under Hermes's own cron
+    lock. When the caller already holds the locks (a failed in-process
+    install) they are re-asserted; crash recovery acquires them with the
+    same bounded wait, and a lock held by another process leaves the file
+    in place and counted unrecoverable — never written unlocked.
 
     Returns (restored, removed, unrecoverable).
     """
@@ -464,35 +476,72 @@ def _rollback(home: Path, record: dict, backup_dir: Path) -> tuple[int, int, int
         # pre-existing — the safe, non-destructive reading
         preexisting = list(record.get("to_write", [])) + list(record.get("to_delete", []))
     preexisting = set(preexisting)
-    for relpath in record.get("to_write", []):
-        backup = backup_dir / relpath
-        target = home / relpath
-        if backup.is_file():
-            _install_from_staged(
-                target, backup, stat.S_IMODE(backup.stat().st_mode) or 0o644
-            )
-            restored += 1
-        elif relpath in preexisting:
-            # R5: no backup for a file that existed before the install —
-            # unlinking it would destroy the pre-pull version forever
-            unrecoverable += 1
-        elif target.is_file() or target.is_symlink():
-            target.unlink(missing_ok=True)
-            removed += 1
-    for relpath in record.get("to_delete", []):
-        if relpath not in preexisting:
-            continue  # did not exist before the pull: nothing to restore
-        backup = backup_dir / relpath
-        if backup.is_file():
-            _install_from_staged(
-                home / relpath, backup, stat.S_IMODE(backup.stat().st_mode) or 0o644
-            )
-            restored += 1
-        else:
-            # the pre-pull file cannot be brought back: say so, never
-            # pretend the rollback was clean
-            unrecoverable += 1
-    return restored, removed, unrecoverable
+    cron_paths = {
+        relpath
+        for relpath in list(record.get("to_write", [])) + list(record.get("to_delete", []))
+        if cron_install.is_cron_jobs_path(relpath)
+    }
+    own_locks: cron_install.CronLocks | None = None
+    if cron_paths and locks is None:
+        own_locks = cron_install.CronLocks(home)
+    try:
+        for relpath in record.get("to_write", []):
+            backup = backup_dir / relpath
+            target = home / relpath
+            if relpath in cron_paths and not _restore_cron_locked(
+                home, relpath, backup, locks if locks is not None else own_locks
+            ):
+                unrecoverable += 1
+                continue
+            if backup.is_file():
+                _install_from_staged(
+                    target, backup, stat.S_IMODE(backup.stat().st_mode) or 0o644
+                )
+                restored += 1
+            elif relpath in preexisting:
+                # R5: no backup for a file that existed before the install —
+                # unlinking it would destroy the pre-pull version forever
+                unrecoverable += 1
+            elif target.is_file() or target.is_symlink():
+                target.unlink(missing_ok=True)
+                removed += 1
+        for relpath in record.get("to_delete", []):
+            if relpath not in preexisting:
+                continue  # did not exist before the pull: nothing to restore
+            backup = backup_dir / relpath
+            if relpath in cron_paths and not _restore_cron_locked(
+                home, relpath, backup, locks if locks is not None else own_locks
+            ):
+                unrecoverable += 1
+                continue
+            if backup.is_file():
+                _install_from_staged(
+                    home / relpath, backup, stat.S_IMODE(backup.stat().st_mode) or 0o644
+                )
+                restored += 1
+            else:
+                # the pre-pull file cannot be brought back: say so, never
+                # pretend the rollback was clean
+                unrecoverable += 1
+        return restored, removed, unrecoverable
+    finally:
+        if own_locks is not None:
+            own_locks.release()
+
+
+def _restore_cron_locked(
+    home: Path, relpath: str, backup: Path, locks: cron_install.CronLocks | None
+) -> bool:
+    """Whether the cron lock for relpath is (or could be) held by this
+    rollback. False means the restore must be skipped and counted
+    unrecoverable — the file is left in place, never written unlocked."""
+    if locks is None:
+        return False
+    try:
+        locks.acquire(relpath)
+    except cron_install.CronLockError:
+        return False
+    return True
 
 
 def apply(
@@ -504,7 +553,16 @@ def apply(
     merge_config_fn: Callable[..., str],
     host_keys: list[str],
 ) -> AppliedResult:
-    """Install a plan into the home, journaled and rollback-safe."""
+    """Install a plan into the home, journaled and rollback-safe.
+
+    0.5.3: when the plan touches a Hermes cron store (``cron/jobs.json`` or
+    ``profiles/<name>/cron/jobs.json``), every such store's lock — Hermes's
+    own cross-process ``.jobs.lock`` flock — is taken BEFORE anything is
+    written, with the same bounded wait Hermes's cron store uses. A lock
+    held by another process fails the whole install CLOSED with a clear
+    error and nothing written; while the install runs (and if it is rolled
+    back) the locks stay held, so no cron store is ever written unlocked.
+    """
     home = Path(home)
     journal_dir = Path(journal_dir)
     backup_dir = Path(backup_dir)
@@ -523,117 +581,141 @@ def apply(
             backup_dir="",
             journal_path="",
         )
-    txid = uuid.uuid4().hex[:16]
-    now = time.time()
-    record = {
-        "v": 1,
-        "transaction_id": txid,
-        "phase": PHASE_PREPARED,
-        "home": str(home),
-        "backup_dir": str(backup_dir),
-        "to_write": sorted(f.relpath for f in plan.to_write)
-        + sorted(relpath for relpath, _staged, _mode in plan.configs),
-        "to_delete": sorted(plan.to_delete),
-        # R5: which affected paths existed before the install; the rollback
-        # removes only what roam itself created and never unlinks a
-        # pre-existing path whose backup is missing.
-        "preexisting": sorted(
-            relpath for relpath in affected if os.path.lexists(home / relpath)
-        ),
-        "created_at": now,
-        "updated_at": now,
-        "error": None,
-    }
-    journal_dir.mkdir(parents=True, exist_ok=True)
-    backup_dir.mkdir(parents=True, exist_ok=True)
-    journal_path = journal_dir / f"{int(now)}-{txid}.json"
-    _write_journal(journal_path, record)
+    cron_paths = sorted(
+        {relpath for relpath in affected if cron_install.is_cron_jobs_path(relpath)}
+    )
+    locks = cron_install.CronLocks(home)
     try:
-        for relpath in sorted(set(record["to_write"] + record["to_delete"])):
-            _backup_file(home, relpath, backup_dir)
-    except Exception as exc:
-        record.update(
-            phase=PHASE_ROLLED_BACK,
-            error=f"backup pass failed: {exc}",
-            updated_at=time.time(),
-        )
+        for relpath in cron_paths:
+            locks.acquire(relpath)
+        txid = uuid.uuid4().hex[:16]
+        now = time.time()
+        record = {
+            "v": 1,
+            "transaction_id": txid,
+            "phase": PHASE_PREPARED,
+            "home": str(home),
+            "backup_dir": str(backup_dir),
+            "to_write": sorted(f.relpath for f in plan.to_write)
+            + sorted(relpath for relpath, _staged, _mode in plan.configs),
+            "to_delete": sorted(plan.to_delete),
+            # R5: which affected paths existed before the install; the rollback
+            # removes only what roam itself created and never unlinks a
+            # pre-existing path whose backup is missing.
+            "preexisting": sorted(
+                relpath for relpath in affected if os.path.lexists(home / relpath)
+            ),
+            "created_at": now,
+            "updated_at": now,
+            "error": None,
+        }
+        journal_dir.mkdir(parents=True, exist_ok=True)
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        journal_path = journal_dir / f"{int(now)}-{txid}.json"
         _write_journal(journal_path, record)
-        raise RestoreError(
-            f"backup pass failed ({exc}); nothing was installed; journal marked rolled_back"
-        ) from exc
-    record.update(phase=PHASE_INSTALLING, updated_at=time.time())
-    _write_journal(journal_path, record)
-    written = 0
-    deleted = 0
-    config_merged = False
-    try:
-        for item in plan.to_write:
-            _install_from_staged(home / item.relpath, item.staged_path, item.mode)
-            written += 1
-        for relpath in plan.to_delete:
-            target = home / relpath
-            if target.is_file() or target.is_symlink():
-                target.unlink(missing_ok=True)
-                _fsync_dir(target.parent)
-                deleted += 1
-        for relpath, staged_path, mode_flag in plan.configs:
-            local_config = home / relpath
-            # keep the local file's mode; a config that does not exist yet is
-            # private (it will hold this host's secrets after the merge)
-            try:
-                mode = stat.S_IMODE(local_config.stat().st_mode)
-            except OSError:
-                mode = 0o600
-            if not mode:
-                mode = 0o600
-            local_text = local_config.read_text() if local_config.is_file() else ""
-            merged = merge_config_fn(
-                staged_path.read_text(), local_text, host_keys,
-                first_pull=(mode_flag == "first_pull"),
-            )
-            _write_atomic(local_config, merged.encode("utf-8"), mode)
-            config_merged = True
-        record.update(phase=PHASE_COMMITTED, updated_at=time.time())
-        _write_journal(journal_path, record)
-    except Exception as exc:
-        restored, removed, unrecoverable = _rollback(home, record, backup_dir)
-        if unrecoverable:
-            # R5: content could not be restored — the home is NOT back to its
-            # pre-pull state and the journal must say so forever
+        try:
+            for relpath in sorted(set(record["to_write"] + record["to_delete"])):
+                _backup_file(home, relpath, backup_dir)
+        except Exception as exc:
             record.update(
-                phase=PHASE_UNRECOVERABLE,
-                error=(
-                    f"{type(exc).__name__}: {exc}; rollback restored {restored} file(s), "
-                    f"removed {removed} new file(s), but {unrecoverable} pre-existing "
-                    "file(s) had no backup and were left in place"
-                ),
+                phase=PHASE_ROLLED_BACK,
+                error=f"backup pass failed: {exc}",
                 updated_at=time.time(),
             )
             _write_journal(journal_path, record)
             raise RestoreError(
-                f"install failed ({type(exc).__name__}: {exc}); rollback restored "
-                f"{restored} file(s) and removed {removed} new file(s), but "
-                f"{unrecoverable} file(s) could not be restored (no backup) and "
-                "were left in place; the journal is marked unrecoverable — "
-                "restore the affected files from a real backup"
+                f"backup pass failed ({exc}); nothing was installed; journal marked rolled_back"
             ) from exc
-        record.update(
-            phase=PHASE_ROLLED_BACK,
-            error=f"{type(exc).__name__}: {exc}",
-            updated_at=time.time(),
-        )
+        record.update(phase=PHASE_INSTALLING, updated_at=time.time())
         _write_journal(journal_path, record)
-        raise RestoreError(
-            f"install failed ({type(exc).__name__}: {exc}); rollback restored {restored} "
-            f"file(s) and removed {removed} new file(s)"
-        ) from exc
-    return AppliedResult(
-        files_written=written,
-        files_deleted=deleted,
-        config_merged=config_merged,
-        backup_dir=str(backup_dir),
-        journal_path=str(journal_path),
-    )
+        written = 0
+        deleted = 0
+        config_merged = False
+        try:
+            for item in plan.to_write:
+                if cron_install.is_cron_jobs_path(item.relpath):
+                    # 0.5.3: cron stores install through Hermes's own cron
+                    # lock (held for this whole install) with the
+                    # shrink-merge guard that preserves a concurrent local
+                    # create.
+                    cron_install.install_jobs_file(
+                        home,
+                        item.relpath,
+                        item.staged_path.read_bytes(),
+                        item.mode,
+                        locks,
+                    )
+                else:
+                    _install_from_staged(home / item.relpath, item.staged_path, item.mode)
+                written += 1
+            for relpath in plan.to_delete:
+                target = home / relpath
+                if target.is_file() or target.is_symlink():
+                    target.unlink(missing_ok=True)
+                    _fsync_dir(target.parent)
+                    deleted += 1
+            for relpath, staged_path, mode_flag in plan.configs:
+                local_config = home / relpath
+                # keep the local file's mode; a config that does not exist yet is
+                # private (it will hold this host's secrets after the merge)
+                try:
+                    mode = stat.S_IMODE(local_config.stat().st_mode)
+                except OSError:
+                    mode = 0o600
+                if not mode:
+                    mode = 0o600
+                local_text = local_config.read_text() if local_config.is_file() else ""
+                merged = merge_config_fn(
+                    staged_path.read_text(), local_text, host_keys,
+                    first_pull=(mode_flag == "first_pull"),
+                )
+                _write_atomic(local_config, merged.encode("utf-8"), mode)
+                config_merged = True
+            record.update(phase=PHASE_COMMITTED, updated_at=time.time())
+            _write_journal(journal_path, record)
+        except Exception as exc:
+            restored, removed, unrecoverable = _rollback(
+                home, record, backup_dir, locks
+            )
+            if unrecoverable:
+                # R5: content could not be restored — the home is NOT back to its
+                # pre-pull state and the journal must say so forever
+                record.update(
+                    phase=PHASE_UNRECOVERABLE,
+                    error=(
+                        f"{type(exc).__name__}: {exc}; rollback restored {restored} file(s), "
+                        f"removed {removed} new file(s), but {unrecoverable} pre-existing "
+                        "file(s) had no backup and were left in place"
+                    ),
+                    updated_at=time.time(),
+                )
+                _write_journal(journal_path, record)
+                raise RestoreError(
+                    f"install failed ({type(exc).__name__}: {exc}); rollback restored "
+                    f"{restored} file(s) and removed {removed} new file(s), but "
+                    f"{unrecoverable} file(s) could not be restored (no backup) and "
+                    "were left in place; the journal is marked unrecoverable — "
+                    "restore the affected files from a real backup"
+                ) from exc
+            record.update(
+                phase=PHASE_ROLLED_BACK,
+                error=f"{type(exc).__name__}: {exc}",
+                updated_at=time.time(),
+            )
+            _write_journal(journal_path, record)
+            raise RestoreError(
+                f"install failed ({type(exc).__name__}: {exc}); rollback restored {restored} "
+                f"file(s) and removed {removed} new file(s)"
+            ) from exc
+        return AppliedResult(
+            files_written=written,
+            files_deleted=deleted,
+            config_merged=config_merged,
+            backup_dir=str(backup_dir),
+            journal_path=str(journal_path),
+        )
+    finally:
+        locks.release()
 
 
 def recover(home: Path, journal_dir: Path) -> list[str]:
