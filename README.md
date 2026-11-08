@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/catalog-banner.png" alt="Hermes Roam" width="720"></p>
+
 # Hermes Roam
 
 **Encrypted, host-scoped sync of your Hermes Agent home between your own machines — into storage you own, with secrets that never leave, and nothing installed without your decision.**
