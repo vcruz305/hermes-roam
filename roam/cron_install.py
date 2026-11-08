@@ -381,6 +381,10 @@ class CronLocks:
 
 
 def _fsync_dir(path: Path) -> None:
+    # Windows cannot open a directory for fsync (PermissionError); NTFS
+    # journals the rename itself, so there is nothing to flush there.
+    if os.name == "nt":
+        return
     descriptor = os.open(path, os.O_RDONLY)
     try:
         os.fsync(descriptor)

@@ -667,8 +667,9 @@ Review and test history: two adversarial review rounds produced 57 proven findin
   hosts cap file sizes (~100 MB per file on GitHub): keep the shared home
   well under ~50 MB on git and use S3/R2 for larger homes, which the 2 GiB
   bundle limit allows.
-- **Windows is not supported by the local backend** (it relies on POSIX
-  `flock`); the S3 and git backends are unaffected.
+- **Windows**: the git and S3/R2 backends run on Windows (proven live on
+  Windows 11 against a Linux device in 0.5.4); the local-directory backend
+  is POSIX-only (it relies on `flock`).
 - **Python 3.11+** is required, with pinned-bounded dependencies
   (`cryptography>=42,<51`, `pyyaml>=6.0,<7`, `boto3>=1.34,<2`).
 

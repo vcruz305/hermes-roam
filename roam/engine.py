@@ -131,11 +131,65 @@ def _hash_file(path: Path) -> tuple[int, str]:
 
 
 def _fsync_dir(path: Path) -> None:
+    # Windows cannot open a directory for fsync (PermissionError); NTFS
+    # journals the rename itself, so there is nothing to flush there.
+    if os.name == "nt":
+        return
     descriptor = os.open(path, os.O_RDONLY)
     try:
         os.fsync(descriptor)
     finally:
         os.close(descriptor)
+
+
+# Windows region locks block other processes from READING the locked bytes, so
+# lock one byte far past the {pid, started_at, what} record instead of byte 0.
+_WIN_LOCK_OFFSET = 1 << 30
+
+
+def _try_lock_nb(descriptor: int) -> bool | None:
+    """One non-blocking exclusive lock attempt on an open lock file.
+
+    True = acquired, False = held by another process, None = no locking
+    backend on this platform. POSIX uses flock; Windows uses a one-byte
+    msvcrt region lock (the same pair Hermes's cron lock uses)."""
+    try:
+        import fcntl
+    except ImportError:
+        fcntl = None
+    if fcntl is not None:
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return True
+        except OSError:
+            return False
+    try:
+        import msvcrt
+    except ImportError:  # pragma: no cover - neither backend exists
+        return None
+    try:  # pragma: no cover - Windows
+        os.lseek(descriptor, _WIN_LOCK_OFFSET, os.SEEK_SET)
+        msvcrt.locking(descriptor, msvcrt.LK_NBLCK, 1)
+        return True
+    except OSError:  # pragma: no cover - Windows
+        return False
+
+
+def _unlock(descriptor: int) -> None:
+    try:
+        import fcntl
+    except ImportError:
+        fcntl = None
+    try:
+        if fcntl is not None:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+            return
+        import msvcrt  # pragma: no cover - Windows
+
+        os.lseek(descriptor, _WIN_LOCK_OFFSET, os.SEEK_SET)
+        msvcrt.locking(descriptor, msvcrt.LK_UNLCK, 1)
+    except (ImportError, OSError):  # closing the descriptor releases it anyway
+        pass
 
 
 def _comparable(manifest: dict | None) -> dict:
@@ -321,13 +375,10 @@ class Engine:
         except OSError:
             return None
         try:
-            try:
-                import fcntl
-            except ImportError:  # pragma: no cover - non-POSIX platforms
+            acquired = _try_lock_nb(descriptor)
+            if acquired is None:  # pragma: no cover - no locking backend
                 return None
-            try:
-                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except OSError:
+            if not acquired:
                 record = self._lock_record()
                 if record is None:
                     return {
@@ -336,7 +387,7 @@ class Engine:
                         "what": "another roam command",
                     }
                 return record
-            fcntl.flock(descriptor, fcntl.LOCK_UN)
+            _unlock(descriptor)
             return None
         finally:
             os.close(descriptor)
@@ -359,15 +410,13 @@ class Engine:
         lock_path = self._roam_dir() / "lock"
         descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
         try:
-            try:
-                import fcntl
-            except ImportError:  # pragma: no cover - non-POSIX platforms
-                fcntl = None
-            if fcntl is None:
+            acquired = _try_lock_nb(descriptor)
+            if acquired is None:  # pragma: no cover - no locking backend
                 yield True
                 return
             try:
-                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                if not acquired:
+                    raise OSError("roam home lock is held")
             except OSError as exc:
                 if skip_when_busy:
                     yield False

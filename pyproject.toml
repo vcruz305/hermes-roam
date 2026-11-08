@@ -1,6 +1,6 @@
 [project]
 name = "hermes-roam"
-version = "0.5.3"
+version = "0.5.4"
 description = "Encrypted, host-scoped sync of your Hermes Agent home across devices (S3/R2 or git)."
 readme = "README.md"
 requires-python = ">=3.11"

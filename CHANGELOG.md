@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.4 — 2026-11-08
+
+Windows fixes from roam's first real Windows run (Windows 11, Hermes 0.23.0,
+git backend over SSH, pulling a home pushed from Linux).
+
+- Every pull failed with `PermissionError`: atomic installs fsynced the parent
+  directory with `os.open(dir, O_RDONLY)`, which Windows refuses. Directory
+  fsync is now skipped on Windows (NTFS journals the rename); POSIX unchanged.
+- The per-home lock was a silent no-op on Windows (no `fcntl`). It now takes a
+  non-blocking one-byte `msvcrt` region lock placed past the
+  `{pid, started_at, what}` record, so a concurrent command still gets the
+  named refusal and can read who holds the lock.
+- Proven live on Windows: plan, `pull --apply --overwrite-conflicts` (12 files,
+  three profiles, host keys kept local), push, refused stale push (exit 2),
+  history, restore and the read-only session archive.
+
 ## 0.5.3 — 2026-11-08
 
 Catalog review fixes (teknium1) plus a terminal-only auto-sync switch.
